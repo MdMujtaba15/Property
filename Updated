@@ -1,21 +1,27 @@
 
-PROC IMPORT DATAFILE='/ere/local/shared/actuarial/Share/Claims/WPC/TESTING 2/Adj Prod by Property_Template.xlsx' 
-    DBMS=XLSX 
-    REPLACE 
+/* Testing 2 SAS script 1 : Combine Hours and Counts Data        */
+
+/* 1. IMPORT PROPERTY DATA                                     */
+PROC IMPORT DATAFILE='/ere/local/shared/actuarial/Share/Claims/WPC/TESTING 2/Adj Prod by Property_Template.xlsx'
+    DBMS=XLSX
+    REPLACE
     OUT=both1;
     sheet="PropertyWL";
-    GETNAMES=YES; 
+    GETNAMES=YES;
 RUN;
 
 
+/* 2. IDENTIFY DUPLICATE RECORDS                              */
 proc sql;
-    create table dups as 
+    create table dups as
     select *
     from both1
     group by 'EMP_ID'n, 'Payperiodend_dt'n
     having count(*) gt 1;
 quit;
 
+
+/* 3. PREPARE WORKING DATASET                                 */
 data both;
     set both1;
     format Payperiodend_dt mmddyy10.;
@@ -38,8 +44,9 @@ data both;
     ;
 run;
 
-/* fix adj titles */
 
+/* 4. STANDARDISE ADJUSTER JOB TITLES                          */
+/* Converts inconsistent adjuster job titles into standardised   */
 data both;
     format JOB_TTL_FULL $50.;
     set both;
@@ -53,11 +60,14 @@ data both;
     else if JOB_TTL_FULL = 'Property Adjuster I' then JOB_TTL_FULL = 'Property Adjuster';
     else if JOB_TTL_FULL = 'Property Adjuster II' then JOB_TTL_FULL = 'Property Adjuster';
 
-    where JOB_TTL_FULL ne 'PRPA' 
+    where JOB_TTL_FULL ne 'PRPA'
       and JOB_TTL_FULL ne 'Property Repair Program Adjuster';
 run;
 
-/* fix branch */
+
+
+/* 5. STANDARDISE BRANCH-TO-REGION MAPPING                      */
+/* Assigns a reporting region to each branch                    */
 
 data both;
     set both;
@@ -89,8 +99,9 @@ data both;
     else if RPT_ENTITY = 'Claims' then Region = 'Claims';
 run;
 
-/* combine */
 
+
+/* 6. COMBINE PROPERTY PRODUCTIVITY DATA                        */
 PROC SQL;
     CREATE TABLE propcurr.hcoutput AS
     SELECT
@@ -113,6 +124,7 @@ PROC SQL;
     FROM both;
 QUIT;
 
+/* 7. CREATE SIMPLIFIED PRODUCTIVITY OUTPUT                     */
 data propcurr.hcoutput2;
     set propcurr.hcoutput;
     drop
@@ -122,8 +134,9 @@ data propcurr.hcoutput2;
     ;
 run;
 
-/* create adjuster/branch/position decode */
 
+
+/* 8. CREATE ADJUSTER/BRANCH/POSITION DECODE                   */
 PROC SQL;
     CREATE TABLE adjusters_decode AS
     SELECT DISTINCT
@@ -141,8 +154,9 @@ PROC SQL;
         a.'EMP_ID'n;
 QUIT;
 
-/* add counter and lookup field */
 
+
+/* 9. ASSIGN SEQUENTIAL ADJUSTER COUNTER                        */
 data adjusters_decode;
     set adjusters_decode;
     by group;
@@ -151,6 +165,9 @@ data adjusters_decode;
     else agt = agt+1;
 run;
 
+
+
+/* 10. CREATE FINAL BRANCH-ADJUSTER DECODE                      */
 PROC SQL;
     CREATE TABLE propcurr.adjusters_decode2 AS
     SELECT
@@ -162,12 +179,17 @@ PROC SQL;
     FROM adjusters_decode;
 QUIT;
 
+
+/* 11. CREATE EMPLOYEE NAME AND ID LOOKUP                      */
 proc sql;
-    create table propcurr.adj_decode as 
-    select distinct 
+    create table propcurr.adj_decode as
+    select distinct
         compress(a.'EMP_NM'n) as EMP_NM,
         a.'EMP_ID'n
     from both1 as a;
 quit;
 
+
+
+/* 12. CLEAR LIBRARY ASSIGNMENT                                 */
 libname propcurr clear;
