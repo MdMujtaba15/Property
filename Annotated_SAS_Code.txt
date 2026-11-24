@@ -1,7 +1,5 @@
-/*================================================================================================================*/
-/* 01. CONFIGURATION AND DATA CONNECTIONS — Optional modeling utilities and CCDS access. */
-/*================================================================================================================*/
 
+/* CONFIGURATION AND DATA CONNECTIONS — Optional modeling utilities and CCDS access. */
 
 /* Useful */
 /*%include '/ere/local/shared/actuarial/Technology and Tools/SAS/Modeling Tools/Preprocessing/RankMissRanges.sas';*/
@@ -14,9 +12,9 @@
 LIBNAME CCDS ORACLE PATH=CDEP1 SCHEMA=BRFADM Authdomain=Oracle_Auth_CCDS;
 
 
-/*================================================================================================================*/
+
 /* 02. EXTRACT INTERNAL SERVICES — Pull completed internal Symbility assignments and adjuster details. */
-/*================================================================================================================*/
+
 
 /* Attributes of claim/service */
 PROC SQL;
@@ -129,10 +127,8 @@ WHERE
 	);
 
 
-/*================================================================================================================*/
-/* 03. EXTRACT VENDOR SERVICES — Pull external/vendor Symbility assignments for the same claim population. */
-/*================================================================================================================*/
 
+/* 03. EXTRACT VENDOR SERVICES — Pull external/vendor Symbility assignments for the same claim population. */
 /* Info about external services */
 	CREATE TABLE VendorServices AS
     SELECT *
@@ -208,9 +204,8 @@ WHERE
 	);
 
 
-/*================================================================================================================*/
+
 /* 04. EXTRACT INTERNAL SERVICE HISTORY — Retrieve service-change events used to reconstruct workflow steps. */
-/*================================================================================================================*/
 
 /* Historical log of steps within a service */
 CREATE TABLE InternalHistory AS
@@ -240,9 +235,8 @@ CREATE TABLE InternalHistory AS
 	);
 
 
-/*================================================================================================================*/
+
 /* 05. EXTRACT REFERRAL EVENTS — Capture manual subrogation and litigation referral dates. */
-/*================================================================================================================*/
 
 /* Date claim was referred to subro or litigation (will use this as end date of service if this was a manual referral) */
 create table Referral as
@@ -276,9 +270,8 @@ create table Referral as
 QUIT;
 
 
-/*================================================================================================================*/
+
 /* 06. DERIVE SERVICE-HISTORY DATES — Find the latest recorded action date for each service. */
-/*================================================================================================================*/
 
 /* Potential end date for marking the end of a service */
 proc sql;
@@ -294,9 +287,8 @@ proc freq data=internalhistory;
 run;
 
 
-/*================================================================================================================*/
+
 /* 07. STANDARDIZE SERVICE-HISTORY EVENTS — Clean inconsistent free-text change descriptions into categories. */
-/*================================================================================================================*/
 
 /* Clean up some manual entries in the service history log */
 data internalhistory2;
@@ -344,9 +336,8 @@ proc freq data=internalhistory2;
 run;
 
 
-/*================================================================================================================*/
 /* 08. PIVOT SERVICE-HISTORY COUNTS — Count each event type and create one column per event category. */
-/*================================================================================================================*/
+
 
 /* Count service steps */
 proc sql;
@@ -368,9 +359,8 @@ proc transpose data=internalhistory2a out=internalhistory2b prefix=chg_dc_;
 run;
 
 
-/*================================================================================================================*/
+
 /* 09. ENRICH AND DEDUPLICATE INTERNAL SERVICES — Add referral/action dates and consolidate to service-level records. */
-/*================================================================================================================*/
 
 /* Merge on subro/litigation referral date as well as date that last recorded step was performed */
 proc sql;
@@ -397,9 +387,9 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 10. REVIEW SUPERVISOR ASSIGNMENTS AND CANCELLATIONS — Identify records for diagnostics and exclusion. */
-/*================================================================================================================*/
+
 
 		/* How often are supervisors assigned a service? 9007 */
 		data supervisors;
@@ -430,9 +420,9 @@ proc sort data=internalservices2;
 run;
 
 
-/*================================================================================================================*/
+
 /* 11. CALCULATE INTERNAL SERVICE CYCLE TIME — Apply the selected end-date hierarchy and remove excluded services. */
-/*================================================================================================================*/
+
 
 PROC SQL;
 	CREATE TABLE COUNT_clm AS
@@ -478,9 +468,9 @@ run;
 		run;
 
 
-/*================================================================================================================*/
+
 /* 12. SUMMARIZE VENDOR SERVICE MIX — Count vendor assignment types by claim and pivot them into columns. */
-/*================================================================================================================*/
+
 
 		/* Look at types of external services */
 		proc freq data=vendorservices;
@@ -502,9 +492,8 @@ proc transpose data=vendorservices2 out=vendorservices3 prefix=service_;
 run;
 
 
-/*================================================================================================================*/
+
 /* 13. COMBINE INTERNAL AND VENDOR SERVICE DATA — Attach vendor-service counts to the internal-service base. */
-/*================================================================================================================*/
 
 /* Now that internal services have been shrunk down, merge vendor services onto internal service table */
 proc sql;
@@ -515,9 +504,7 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
 /* 14. EXTRACT CLAIM-LEVEL ATTRIBUTES — Retrieve policy, loss, location, special-circumstance, damage, and payment data. */
-/*================================================================================================================*/
 
 /* Claim level attributes (info about the loss) */
 PROC SQL;
@@ -661,9 +648,8 @@ from BRFADM.clm
 	);
 
 
-/*================================================================================================================*/
+
 /* 15. EXTRACT CLAIM FLAGS AND PUBLIC-ADJUSTER DETAILS — Retrieve claim indicators and public-adjuster involvement. */
-/*================================================================================================================*/
 
 	/* Flags on claim */
 	CREATE TABLE Flags AS
@@ -735,9 +721,9 @@ QUIT;
 		run;
 
 
-/*================================================================================================================*/
+
 /* 16. AGGREGATE CLAIM INFORMATION — Reduce transaction-level records and prepare claim-level features. */
-/*================================================================================================================*/
+
 
 /* Shrink up to claim/exposure level */
 proc sql;
@@ -761,9 +747,8 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 17. CREATE CLAIM FEATURE INDICATORS — Pivot cost categories, loss causes, exposure types, and incident types. */
-/*================================================================================================================*/
 
 /* Transpose: costcategory/transcost (focus on payments), losscause (with indicator), expsr_typ_dc */
 
@@ -828,9 +813,9 @@ proc transpose data=claiminfo7 out=claiminfo7b prefix=incidtyp_;
 run;
 
 
-/*================================================================================================================*/
+
 /* 18. NORMALIZE CLAIM FLAGS AND SEVERITY — Convert Y/N fields and severity levels into numeric indicators. */
-/*================================================================================================================*/
+
 
 /* Convert Y/N indicators to 0/1 */
 data claiminfo8;
@@ -859,9 +844,8 @@ data claiminfo8;
 run;
 
 
-/*================================================================================================================*/
+
 /* 19. ROLL UP CLAIM FEATURES — Aggregate indicators and claim costs to the claim level. */
-/*================================================================================================================*/
 
 /* Summarize -- take max of indicators at claim level */
 proc sql;
@@ -877,9 +861,8 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 20. PIVOT HIGH-RISK FLAGS — Create one indicator column for each applicable claim flag. */
-/*================================================================================================================*/
 
 proc sql;
 	create table flags2 as
@@ -895,9 +878,9 @@ proc transpose data=flags2 out=flags2b prefix=flag_;
 run;
 
 
-/*================================================================================================================*/
+
 /* 21. ASSEMBLE THE CORE SERVICE DATASET — Join service, claim, flag, and public-adjuster features. */
-/*================================================================================================================*/
+
 
 /* Merge everything together (service info and transposed claim info) */
 proc sql;
@@ -920,9 +903,9 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 22. HANDLE MISSING VALUES — Set numeric missing values to zero and character missing values to 'Blank'. */
-/*================================================================================================================*/
+
 
 /* Fill in default values for missings */
 data allservices;
@@ -949,9 +932,8 @@ data allservices;
 run;
 
 
-/*================================================================================================================*/
 /* 23. OPTIONAL ADJUSTER WORKLOAD FEATURE — Calculate monthly service counts per adjuster (retained as an optional feature). */
-/*================================================================================================================*/
+
 
 		/* Not using this, but keeping it here */
 		/* 4/5/2022: Add additional y = number of services assigned per month to an adjuster */
@@ -978,9 +960,9 @@ run;
 		quit;
 
 
-/*================================================================================================================*/
+
 /* 24. CREATE THE SERVICE REPORT BASE — Save the assembled dataset and standardize CAT naming. */
-/*================================================================================================================*/
+
 
 /* Save dataset */
 data services_report;
@@ -1002,9 +984,9 @@ quit;
 /*%SummaryStats(propadj.services_report, _ALL_, dset_EDA, MissVal=-99, MissVal_C='#', count_unique=0);*/
 
 
-/*================================================================================================================*/
+
 /* 25. OPTIONAL SERVICE-HISTORY ACTIVITY COUNT — Build an alternative activity-count target/feature. */
-/*================================================================================================================*/
+
 
 /* Alt y option - count activities from service history screen (not using) */
 data services_report;
@@ -1042,9 +1024,9 @@ data services_report;
 run;
 
 
-/*================================================================================================================*/
+
 /* 26. LOAD AND DECODE HOMEOWNERS POLICY DATA — Apply the statistical-code decoding macro to policy records. */
-/*================================================================================================================*/
+
 
 /* Home db decode macro */
 %include "/ere/local/shared/actuarial/Database Updates/Macros/Transactional Statistical Code Decode Macro.sas";
@@ -1063,9 +1045,9 @@ proc freq data=home_vars;
 run;
 
 
-/*================================================================================================================*/
+
 /* 27. DERIVE POLICY MATCHING FIELDS — Map policy form and coverage combinations to a common match unit. */
-/*================================================================================================================*/
+
 
 data home_vars2;
 	set home_vars;
@@ -1088,9 +1070,9 @@ data home_vars2;
 run;
 
 
-/*================================================================================================================*/
+
 /* 28. PREPARE POLICY MATCH TABLES — Select policy/module and coverage-period fields for matching. */
-/*================================================================================================================*/
+
 
 proc sql;
 	create table home_mps as
@@ -1267,9 +1249,8 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
 /* 29. POLICY MATCH 1 — Match at the most granular level: policy, module, coverage, and ZIP+4/ZIP9. */
-/*================================================================================================================*/
+
 
 /* Match 1: merge at most granular level first: policy/mod/coverage/risk zip9 */
 proc sql;
@@ -1446,9 +1427,9 @@ data mergedata2a mergedata2b;
 run;
 
 
-/*================================================================================================================*/
+
 /* 30. POLICY MATCH 2 — Relax the match to policy, module, coverage, and ZIP5. */
-/*================================================================================================================*/
+
 
 /* Match 2: match on policy/mod/coverage/risk zip5 */
 proc sql;
@@ -1627,9 +1608,9 @@ data mergedata3a mergedata3b;
 run;
 
 
-/*================================================================================================================*/
+
 /* 31. POLICY MATCH 3 — Match policy, module, and ZIP9 without requiring coverage. */
-/*================================================================================================================*/
+
 
 /* Match 3: match on policy/mod/risk zip 9 */
 proc sql;
@@ -1809,9 +1790,8 @@ run;
 
 /* Match 4: match on policy/mod/risk zip 5 */
 
-/*================================================================================================================*/
 /* 32. POLICY MATCH 4 — Match policy, module, and ZIP5 without requiring coverage. */
-/*================================================================================================================*/
+
 
 proc sql;
 	create table mergedata4 as
@@ -1990,9 +1970,9 @@ run;
 
 /* Match 5: match on policy/mod */
 
-/*================================================================================================================*/
+
 /* 33. POLICY MATCH 5 — Match on policy and module when more granular keys do not match. */
-/*================================================================================================================*/
+
 
 proc sql;
 	create table mergedata5 as
@@ -2169,9 +2149,9 @@ run;
 
 /* Match 5: match on policy/mod/policy effective dates/risk zip5 */
 
-/*================================================================================================================*/
+
 /* 34. POLICY MATCH 6 — Use policy/module, policy-effective dates, and ZIP5 as an alternate match. */
-/*================================================================================================================*/
+
 
 proc sql;
 	create table mergedata6 as
@@ -2351,9 +2331,9 @@ run;
 
 /* Merge all a datasets together - 404k obs */
 
-/*================================================================================================================*/
+
 /* 35. COMBINE POLICY MATCH RESULTS — Stack match outputs, remove duplicates, and standardize missing values. */
-/*================================================================================================================*/
+
 
 data mergedata8;
 	set mergedata2a mergedata3a mergedata4a mergedata5a mergedata6a mergedata7a;
@@ -2394,9 +2374,9 @@ data mergedata8;
 run;
 
 
-/*================================================================================================================*/
+
 /* 36. PREPARE SERVICE-LEVEL REPORT — Sort and retain the service-level records for enrichment. */
-/*================================================================================================================*/
+
 
 data services2_report;
 	set mergedata8;
@@ -2414,9 +2394,9 @@ data services2_report;
 run;
 
 
-/*================================================================================================================*/
+
 /* 37. IMPORT ADJUSTER OFFICE LOCATIONS — Load the HRIS address workbook and clean office/adjuster names. */
-/*================================================================================================================*/
+
 
 FILENAME REFFILE '/ere/local/shared/actuarial/Share/Claims/WPC/hrisaddr.xlsx';
 /* import file */
@@ -2487,9 +2467,9 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 38. BUILD ADJUSTER TRAVEL LOOKUPS — Identify mobile roles and retrieve office/ZIP information. */
-/*================================================================================================================*/
+
 
 /* Temp2 are positions that travel (list from MaryBeth) */
 data temp2 temp2a temp3 temp4;
@@ -2507,9 +2487,9 @@ data temp2 temp2a temp3 temp4;
 run;
 
 
-/*================================================================================================================*/
+
 /* 39. EXTRACT OFFICE/LOCATION REFERENCE DATA — Reconnect to CCDS and retrieve the location attributes needed for distance calculations. */
-/*================================================================================================================*/
+
 
 /*SIGN ONTO SERVER*/
 /*INITIALIZE ACCESS TO CCDS*/
@@ -2546,9 +2526,9 @@ data temp5;
 run;
 
 
-/*================================================================================================================*/
+
 /* 40. RESOLVE OFFICE-TO-ZIP MAPPINGS — Handle duplicate office/ZIP combinations and align adjuster ZIPs to office ZIPs. */
-/*================================================================================================================*/
+
 
 /* Some instances where same offices cover the same zip code... Will keep duplicates and select shorter distance */
 proc sql;
@@ -2585,9 +2565,9 @@ proc freq data=temp4;
 run;
 
 
-/*================================================================================================================*/
+
 /* 41. CALCULATE AND IMPUTE TRAVEL DISTANCES — Apply default distance rules and derive average values for missing routes. */
-/*================================================================================================================*/
+
 
      PROC SQL;
            CREATE TABLE temp2b As
@@ -2655,9 +2635,9 @@ run;
 	run;
 
 
-/*================================================================================================================*/
+
 /* 42. ADD TRAVEL FEATURES TO THE SERVICE REPORT — Merge travel metrics and apply consistent missing-value handling. */
-/*================================================================================================================*/
+
 
 	data services3_report;
 		set temp2d temp3;
@@ -2697,9 +2677,9 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 43. EXTRACT CLAIM TEXT AND NOTE DATA — Prepare claim/service text fields and supporting note information. */
-/*================================================================================================================*/
+
 
 options compress=yes;
 
@@ -2767,9 +2747,9 @@ FROM connection to CCDS
 
     WHERE
 
-/*================================================================================================================*/
+
 /* 44. FILTER TRANSACTIONS FOR MODELING — Exclude transaction records that are outside the intended payment definition. */
-/*================================================================================================================*/
+
 
     	/* Exclude transactions that should be ignored */
 		CLM.CRNT_REC_IN = 'Y'
@@ -2789,9 +2769,9 @@ FROM connection to CCDS
 QUIT;
 
 
-/*================================================================================================================*/
+
 /* 45. BUILD NOTE-BASED FEATURES — Summarize note counts and prepare text fields for downstream text mining. */
-/*================================================================================================================*/
+
 
 proc sql;
 	create table text_fields as
@@ -2852,9 +2832,9 @@ quit;
 /*run;*/
 
 
-/*================================================================================================================*/
+
 /* 46. MERGE NOTE AND TEXT FEATURES — Add note-derived variables to the service-level report. */
-/*================================================================================================================*/
+
 
 data services4_report;
 	set services4_report;
@@ -2927,9 +2907,9 @@ data services4_report;
 run;
 
 
-/*================================================================================================================*/
+
 /* 47. PREPARE MODELING DATA — Remove raw text fields where appropriate and create modeling-ready variants. */
-/*================================================================================================================*/
+
 
 data services4_report_dr (drop=incid_dc claimdescription claimsummary);
 	set services4_report;
@@ -2938,9 +2918,9 @@ run;
 options compress=yes;
 
 
-/*================================================================================================================*/
+
 /* 48. CREATE ADJUSTER/ACTIVITY COUNT FEATURES — Build the count-based metric used as an additional predictor. */
-/*================================================================================================================*/
+
 
 /* Create Count Metric */
 
@@ -3112,9 +3092,9 @@ data services5_report;
 run;
 
 
-/*================================================================================================================*/
+
 /* 49. ADD CLAIM TIMING AND BUSINESS-DEFINED FEATURES — Derive additional variables requested by Claims stakeholders. */
-/*================================================================================================================*/
+
 
 /* Additional Variables to Consider - based on 6/2/22 meeting with Claims folks */
 
@@ -3179,9 +3159,9 @@ data services5_report;
 run;
 
 
-/*================================================================================================================*/
+
 /* 50. BUILD ZIP-TO-BRANCH REFERENCE — Prepare branch geography and density information. */
-/*================================================================================================================*/
+
 
 proc sql;
 create table Zip_Branch as
@@ -3274,9 +3254,9 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 51. ADD FINAL CLAIM SEVERITY AND INDICATOR FEATURES — Retrieve and attach additional claim-level attributes. */
-/*================================================================================================================*/
+
 
 /* Add on cat severity indicator and misc. indicators missed in program 1 */
 
@@ -3436,9 +3416,9 @@ proc sql;
 quit;
 
 
-/*================================================================================================================*/
+
 /* 52. CREATE FINAL MODELING DATASETS — Assemble the final service-level report and Python export tables. */
-/*================================================================================================================*/
+
 
 data services7_report;
 	set merge_catsev;
@@ -3448,9 +3428,9 @@ data propcurr.services7_report;
 run;
 
 
-/*================================================================================================================*/
+
 /* 53. SELECT AND PREPARE MODEL INPUT VARIABLES — Retain and shape the fields intended for downstream modeling. */
-/*================================================================================================================*/
+
 
 data for_python_report;
 	set services7_report;
@@ -3557,9 +3537,8 @@ data for_python_report;
 run;
 
 
-/*================================================================================================================*/
 /* 54. CLEAN TEXT FIELDS FOR PYTHON — Remove unwanted characters and normalize embedded line breaks. */
-/*================================================================================================================*/
+
 
 /* Need this step otherwise text fields import funky in Python*/
 data for_python_text;
@@ -3578,9 +3557,9 @@ data propcurr.CB_text;
 run;
 
 
-/*================================================================================================================*/
+
 /* 55. EXPORT TEXT DATA — Export the prepared text dataset to the configured output location. */
-/*================================================================================================================*/
+
 
 %macro ExportCustom();
 
