@@ -1,0 +1,3361 @@
+
+
+/* Useful */
+/*%include '/ere/local/shared/actuarial/Technology and Tools/SAS/Modeling Tools/Preprocessing/RankMissRanges.sas';*/
+/*%include '/ere/local/shared/actuarial/Technology and Tools/SAS/Modeling Tools/Validate/ModelValidate.sas';*/
+/*%include '/ere/local/shared/actuarial/Technology and Tools/SAS/Modeling Tools/Preprocessing/DummyVars.sas';*/
+/*%include '/ere/local/shared/actuarial/Technology and Tools/SAS/Modeling Tools/EDA/SummaryStats.sas';*/
+
+/*SIGN ONTO SERVER*/
+/*INITIALIZE ACCESS TO CCDS*/
+LIBNAME CCDS ORACLE PATH=CDEP1 SCHEMA=BRFADM Authdomain=Oracle_Auth_CCDS;
+
+
+/* Attributes of claim/service */
+PROC SQL;
+    CONNECT USING CCDS;
+
+    CREATE TABLE InternalServices AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT DISTINCT
+	CLM.CLM_NR,
+/*	expsr.EXPSR_NTRL_ID,*/
+/*	CLM.LOB_DC,*/
+/*	EXPSR.EXPSR_TYP_DC,*/
+/*	EXPSR.LST_WRK_DT,*/
+	EXPSR.ASGN_STT_DC,
+/*	case when clm.con_clm_orig_crt_dt is null*/
+/*		then clm.crt_dt else clm.con_clm_orig_crt_dt end as clm_crtDt,*/
+/*	expsr.asgn_dt as expsr_asgn_dt,*/
+	expsr.cls_dt as Expsr_Cls_Dt,
+	expsr.CRT_DT,
+/*	expsr.REOPN_DT,*/
+	SR.SVC_REQ_NR,
+	SR.lst_upd_dt,
+/*	SS.SVC_NM_TXT,*/
+/*	SR.CRT_DT,*/
+/*    SR.PRGRS_DC,*/
+/* this is always blank */
+/*    SR.CLS_DT,*/
+    SR.ASGN_DT,
+	SVCREQ_WRKLD_HIST.EVNT_DT,	
+	SR.PRGRS_DC,
+/*	SR.DT_TM_CLS,*/
+/*	SR.REQ_SVC_CMPL_DT,*/
+/*	SVC_REQ_HRCHY_MV.SVC_STRT_DT,*/
+/*	SVC_REQ_HRCHY_MV.SVC_END_DT,*/
+/*	SR.SYMBLTY_ASGN_TYP_DC,*/
+	crtl.usr_nm as AdjusterNr,
+/*	EXPSR_HRCHY_MV.EXPSR_STRT_DT,*/
+/*	EXPSR_HRCHY_MV.EXPSR_END_DT,*/
+/*	expsr_hrchy_mv.adj_nm as ExpAdjusterName,*/
+/*	expsr_hrchy_mv.ADJ_POS_DC as ExpAdjPositionTitle,*/
+/*	expsr_hrchy_mv.ADJ_GRP_DC,*/
+/*	expsr_hrchy_mv.USR_RPT_BRNCH_DC as ExpAdjusterReportingBranch,*/
+/*	expsr_hrchy_mv.SPVS_NM as ExpSupervisorName,*/
+/*	expsr_hrchy_mv.MV_RFRSH_DT,*/
+	SVC_REQ_HRCHY_MV.adj_nm as AdjusterName,
+	SVC_REQ_HRCHY_MV.ADJ_POS_DC as AdjPositionTitle,
+	SVC_REQ_HRCHY_MV.ADJ_GRP_DC,
+	SVC_REQ_HRCHY_MV.USR_RPT_BRNCH_DC as AdjusterReportingBranch,
+	SVC_REQ_HRCHY_MV.SPVS_NM as SupervisorName,
+	CATS.cats_nm,
+	CATS.cats_nr
+/*,*/
+/*	SRCHG.usr_entr_dt*/
+
+FROM BRFADM.CLM	CLM
+LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+LEFT JOIN BRFADM.EXPSR EXPSR on CLM.CLM_NTRL_ID = EXPSR.CLM_NTRL_ID
+	and EXPSR.REC_RET_IN = 'N'
+	and EXPSR.CRNT_REC_IN = 'Y'
+
+left join BRFADM.WRKLD_HIST SVCREQ_WRKLD_HIST 
+	on SR.SVC_REQ_NTRL_ID = SVCREQ_WRKLD_HIST.SVC_REQ_NTRL_ID 
+	and SR.ASGN_USR_ID = SVCREQ_WRKLD_HIST.ASGN_USR_ID 
+	
+
+/*Left Join brfadm.EXPSR_HRCHY_MV on EXPSR_HRCHY_MV.EXPSR_ntrl_id= EXPSR.EXPSR_ntrl_id */
+/*	and SR.lst_upd_dt BETWEEN EXPSR_HRCHY_MV.EXPSR_STRT_DT  AND EXPSR_HRCHY_MV.EXPSR_END_DT*/
+/*	and SR.lst_upd_dt BETWEEN EXPSR_HRCHY_MV.EXPSR_STRT_DT and expsr.cls_dt*/
+/*	left join brfadm.USR on  EXPSR_HRCHY_MV.EXPSR_ASGN_USR_ID=USR.USR_NTRL_ID and USR.crnt_rec_in = 'Y' AND USR.rec_ret_in = 'N'*/
+
+Left Join brfadm.SVC_REQ_HRCHY_MV on SVC_REQ_HRCHY_MV.SVC_REQ_NTRL_ID= SR.SVC_REQ_NTRL_ID 
+	and SR.lst_upd_dt BETWEEN SVC_REQ_HRCHY_MV.SVC_STRT_DT  AND SVC_REQ_HRCHY_MV.SVC_END_DT
+	left join brfadm.USR on  SVC_REQ_HRCHY_MV.SVC_ASGN_USR_ID=USR.USR_NTRL_ID and USR.crnt_rec_in = 'Y' AND USR.rec_ret_in = 'N'
+	left join brfadm.CRTL on  USR.CRTL_ntrl_id=CRTL.CRTL_ntrl_id and CRTL.crnt_rec_in = 'Y' AND CRTL.rec_ret_in = 'N'
+
+LEFT JOIN BRFADM.SVC_REQ_INSTR SRI on SRI.SVC_REQ_NTRL_ID = SR.SVC_REQ_NTRL_ID
+	and SRI.CRNT_REC_IN = 'Y'
+
+LEFT JOIN BRFADM.SVC_REQ_INSTR_SVC SRIS	on SRIS.SVC_REQ_INSTR_NTRL_ID = SRI.SVC_REQ_INSTR_NTRL_ID
+	and SRIS.crnt_rec_in = 'Y'
+
+LEFT JOIN BRFADM.SPCL_SVC SS on SRIS.SPCL_SVC_NTRL_ID = SS.SPCL_SVC_NTRL_ID  		
+	and SS.crnt_rec_in= 'Y'
+
+LEFT JOIN BRFADM.CATS on CLM.cats_ntrl_id = CATS.cats_ntrl_id 
+/*	and CATS.crnt_rec_in = 'Y' and CATS.rec_ret_in = 'N'*/
+	
+LEFT JOIN BRFADM.SVC_REQ_CHG SRCHG on SRCHG.SVC_REQ_NTRL_ID = SR.SVC_REQ_NTRL_ID
+	and SRCHG.crnt_rec_in = 'Y'
+		/*	and srchg.chg_dc LIKE ('%Assignment status changed to Inspection Performed%') */
+
+WHERE	
+	CLM.CRNT_REC_IN = 'Y' 	
+	and CLM.REC_RET_IN = 'N'	
+/*	and CLM.CLM_NR IN ('A00003652544')*/
+	and SS.SVC_NM_TXT IN ('SYMBILITY', 'Symbility', 'symbility')	
+	and SR.SYMBLTY_ASGN_TYP_DC IN ('INTERNAL', 'INTERNAL ADJUSTER', 'internal', 'internal adjuster', 'Internal', 'Internal Adjuster')
+	and CLM.LOB_DC in ('HomeownersLine')	
+/*	and EXPSR.EXPSR_TYP_DC IN ('OtherStructure', 'Dwelling', 'PropertyDamage')*/
+	and EXPSR.LOSS_PARTY_TYP_DC IN ('InsuredLoss')
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+	/* UPDATED 5/26/22 */
+/*	and SR.PRGRS_DC = 'WorkComplete'*/
+	and SVCREQ_WRKLD_HIST.SVC_REQ_PRGRS_TYP_DC = 'WorkComplete'
+	);
+
+
+/* Info about external services */
+	CREATE TABLE VendorServices AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT DISTINCT
+	CLM.CLM_NR,
+/*	case when clm.con_clm_orig_crt_dt is null*/
+/*		then clm.crt_dt else clm.con_clm_orig_crt_dt end as clm_crtDt,*/
+	expsr.cls_dt as Expsr_Cls_Dt,
+	SR.SVC_REQ_NR,
+/*	SS.SVC_NM_TXT,*/
+/*	SR.CRT_DT,*/
+/*    SR.PRGRS_DC,*/
+/*    SR.CLS_DT,*/
+    SR.ASGN_DT,
+	
+	SR.SYMBLTY_ASGN_TYP_DC,
+	crtl.usr_nm as AdjusterNr,
+	expsr_hrchy_mv.adj_nm as AdjusterName,
+	expsr_hrchy_mv.ADJ_POS_DC as AdjPositionTitle,
+	expsr_hrchy_mv.ADJ_GRP_DC,
+	expsr_hrchy_mv.USR_RPT_BRNCH_DC as AdjusterReportingBranch,
+	expsr_hrchy_mv.SPVS_NM as SupervisorName,
+	CATS.cats_nm,
+	CATS.cats_nr
+/*,*/
+/*	SRCHG.usr_entr_dt*/
+
+FROM BRFADM.CLM	CLM
+LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+LEFT JOIN BRFADM.EXPSR EXPSR on CLM.CLM_NTRL_ID = EXPSR.CLM_NTRL_ID
+	and EXPSR.REC_RET_IN = 'N'
+	and EXPSR.CRNT_REC_IN = 'Y'
+
+Left Join brfadm.EXPSR_HRCHY_MV on EXPSR_HRCHY_MV.EXPSR_ntrl_id= EXPSR.EXPSR_ntrl_id 
+	and SR.lst_upd_dt BETWEEN EXPSR_HRCHY_MV.EXPSR_STRT_DT  AND EXPSR_HRCHY_MV.EXPSR_END_DT
+	left join brfadm.USR on  EXPSR_HRCHY_MV.EXPSR_ASGN_USR_ID=USR.USR_NTRL_ID and USR.crnt_rec_in = 'Y' AND USR.rec_ret_in = 'N'
+	left join brfadm.CRTL on  USR.CRTL_ntrl_id=CRTL.CRTL_ntrl_id and CRTL.crnt_rec_in = 'Y' AND CRTL.rec_ret_in = 'N'
+
+LEFT JOIN BRFADM.SVC_REQ_INSTR SRI on SRI.SVC_REQ_NTRL_ID = SR.SVC_REQ_NTRL_ID
+	and SRI.CRNT_REC_IN = 'Y'
+
+LEFT JOIN BRFADM.SVC_REQ_INSTR_SVC SRIS	on SRIS.SVC_REQ_INSTR_NTRL_ID = SRI.SVC_REQ_INSTR_NTRL_ID
+	and SRIS.crnt_rec_in = 'Y'
+
+LEFT JOIN BRFADM.SPCL_SVC SS on SRIS.SPCL_SVC_NTRL_ID = SS.SPCL_SVC_NTRL_ID  		
+	and SS.crnt_rec_in= 'Y'
+
+
+LEFT JOIN BRFADM.CATS on CLM.cats_ntrl_id = CATS.cats_ntrl_id 
+/*	and CATS.crnt_rec_in = 'Y' and CATS.rec_ret_in = 'N'*/
+	
+LEFT JOIN BRFADM.SVC_REQ_CHG SRCHG on SRCHG.SVC_REQ_NTRL_ID = SR.SVC_REQ_NTRL_ID
+	and SRCHG.crnt_rec_in = 'Y'
+		/*	and srchg.chg_dc LIKE ('%Assignment status changed to Inspection Performed%') */
+
+WHERE	
+	CLM.CRNT_REC_IN = 'Y' 	
+	and CLM.REC_RET_IN = 'N'	
+/*	and CLM.CLM_NR IN ('A00002765197')*/
+	and SS.SVC_NM_TXT IN ('SYMBILITY', 'Symbility', 'symbility')
+
+	/* 3/1/2022: Grab everything that isn't an internal assignment - should be vendors */
+	and SR.SYMBLTY_ASGN_TYP_DC NOT IN ('INTERNAL', 'INTERNAL ADJUSTER', 'internal', 'internal adjuster', 'Internal', 'Internal Adjuster')	
+	and EXPSR.EXPSR_TYP_DC IN ('OtherStructure', 'Dwelling', 'PropertyDamage')
+	and EXPSR.LOSS_PARTY_TYP_DC IN ('InsuredLoss')
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+/*	and SR.PRGRS_DC = 'WorkComplete'*/
+	);
+
+
+/* Historical log of steps within a service */
+CREATE TABLE InternalHistory AS
+    SELECT * 
+	FROM connection to CCDS
+    (
+	select
+	CLM.CLM_NR,
+	SR.SVC_REQ_NR,
+	SVC_REQ_CHG.CHG_DC, 
+	SVC_REQ_CHG.ACTN_PFRM_DT
+
+	FROM BRFADM.CLM	CLM
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+	LEFT JOIN BRFADM.SVC_REQ_CHG SVC_REQ_CHG on SR.SVC_REQ_NTRL_ID = SVC_REQ_CHG.SVC_REQ_NTRL_ID  		
+	and SVC_REQ_CHG.crnt_rec_in= 'Y'
+
+	where
+	CLM.CRNT_REC_IN = 'Y' 	
+	and CLM.REC_RET_IN = 'N'		
+	and SR.SYMBLTY_ASGN_TYP_DC IN ('INTERNAL', 'INTERNAL ADJUSTER', 'internal', 'internal adjuster', 'Internal', 'Internal Adjuster')	
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+/*	and SR.PRGRS_DC = 'WorkComplete'*/
+/*	and SVC_REQ_CHG.ACTN_PFRM_DT > &FROM_DT.*/
+	);
+	
+/* Date claim was referred to subro or litigation (will use this as end date of service if this was a manual referral) */
+create table Referral as
+		select * from connection to CCDS
+		(
+		/*retrieves the claim natural IDs for claims with no subro_check activities on claims created during the requested time frame*/
+		select distinct
+		clm.clm_nr,
+		ap.act_pttrn_cd,
+		act.asgn_dt
+
+	from	  brfadm.clm
+		left join brfadm.pol on clm.pol_ntrl_id = pol.pol_ntrl_id
+		left join brfadm.act on clm.clm_ntrl_id = act.clm_ntrl_id
+		left join brfadm.act_pttrn ap on act.act_pttrn_ntrl_id = ap.act_pttrn_ntrl_id
+		LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+		and SR.CRNT_REC_IN = 'Y'
+
+	where
+		clm.crnt_rec_in = 'Y' and clm.rec_ret_in = 'N'
+		and pol.crnt_rec_in = 'Y' and pol.rec_ret_in = 'N'
+		and act.crnt_rec_in = 'Y' and act.rec_ret_in = 'N'
+		and ap.crnt_rec_in = 'Y' and ap.rec_ret_in = 'N'
+		/* Only grabbing manual subro referrals since automatic referrals will happen while adjuster is still working claim */
+		and ap.act_pttrn_cd in ('subro_check_manual', /*'subro_check_automatic',*/ 'subro_check', 'litigation_response_due')
+		and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+/*		and SR.PRGRS_DC = 'WorkComplete'*/
+);
+
+	DISCONNECT FROM CCDS;
+QUIT;
+
+/* Potential end date for marking the end of a service */
+proc sql;
+	create table max_action_date as
+	select distinct clm_nr, SVC_REQ_NR, max(datepart(ACTN_PFRM_DT)) as max_ACTN_PFRM_DT format mmddyy10.
+	from internalhistory
+	group by clm_nr, SVC_REQ_NR;
+quit;
+
+
+proc freq data=internalhistory;
+	table chg_dc;
+run;
+
+
+/* Clean up some manual entries in the service history log */
+data internalhistory2;
+	set internalhistory;
+	if substr(chg_dc,1,13) = 'Added invoice' then chg_dc = compress(substr(chg_dc,1,13));
+	if substr(chg_dc,1,22) = 'Adjuster canceled work' then chg_dc = 'AssignmentCancelled';
+	if substr(chg_dc,1,16) = 'Approved invoice' then chg_dc = compress(substr(chg_dc,1,16));
+	if substr(chg_dc,1,12) = 'Paid invoice' then chg_dc = 'PaidInvoice';
+	if substr(compress(chg_dc),1,8) = 'Estimate' and find(chg_dc, 'Approved')>0 then chg_dc = 'EstimateApproved';
+	if substr(compress(chg_dc),1,8) = 'Estimate' and find(chg_dc, 'Cancelled')>0 then chg_dc = 'EstimateCanceled';
+	if substr(compress(chg_dc),1,8) = 'Estimate' and find(chg_dc, 'Reinstated')>0 then chg_dc = 'EstimateReinstated';
+	if substr(compress(chg_dc),1,8) = 'Estimate' and find(chg_dc, 'Deleted')>0 then chg_dc = 'EstimateDeleted';
+	if substr(compress(chg_dc),1,10) = 'Supplement' and find(chg_dc, 'Approved')>0 then chg_dc = 'SupplementApproved';
+	if substr(compress(chg_dc),1,10) = 'Supplement' and find(chg_dc, 'Cancelled')>0 then chg_dc = 'SupplementCanceled';
+	if substr(compress(chg_dc),1,10) = 'Supplement' and find(chg_dc, 'Reinstated')>0 then chg_dc = 'SupplementReinstated';
+	if substr(compress(chg_dc),1,10) = 'Supplement' and find(chg_dc, 'Deleted')>0 then chg_dc = 'SupplementDeleted';
+	if substr(chg_dc,1,29) = 'Assignment status changed to ' then chg_dc = compress(substr(chg_dc,29,length(chg_dc)));
+	if substr(chg_dc,1,23) = 'Vendor withdrew invoice' then chg_dc = compress(substr(chg_dc,23,length(chg_dc)));
+	if substr(chg_dc,1,16) = 'Rejected invoice' then chg_dc = compress(substr(chg_dc,16,length(chg_dc)));
+	if substr(chg_dc,1,24) = 'Invoice marked as unpaid' then chg_dc = 'UnpaidInvoice';
+	if substr(chg_dc,1,24) = 'Marked invoice as unpaid' then chg_dc = 'UnpaidInvoice';
+	/* Jay Molter has been approved -> assuming this relates to an estimate */
+	if find(chg_dc,'Jay Molter') > 0 then chg_dc = 'EstimateApproved';
+	if find(chg_dc,'invoice changed to Approved') > 0 then chg_dc = 'Approvedinvoice';
+	if find(chg_dc,'invoice') > 0 and find(chg_dc,'changed to Approved') > 0 then chg_dc = 'Approvedinvoice';
+	if find(chg_dc,'symbestimate') > 0 then chg_dc = 'EstimateApproved';
+	/* Misc. entries with numbers -- delete */
+	if substr(chg_dc,1,1) = ":" or substr(chg_dc,1,1) = "#" or substr(chg_dc,1,1) = "0" or substr(chg_dc,1,1) = "1"
+	or substr(chg_dc,1,1) = "2" or substr(chg_dc,1,1) = "3" or substr(chg_dc,1,1) = "4" or substr(chg_dc,1,1) = "5"
+	or substr(chg_dc,1,1) = "6" or substr(chg_dc,1,1) = "7"  or substr(chg_dc,1,1) = "8" or substr(chg_dc,1,1) = "9" 
+	or substr(chg_dc,1,2) = "e:" or substr(chg_dc,1,2) = "H2" or substr(chg_dc,1,2) = "JG" or substr(chg_dc,1,2) = "SR" 
+	or substr(chg_dc,1,2) = "n/" or substr(chg_dc,1,2) = "o:" or substr(chg_dc,1,2) = "xx" or substr(chg_dc,1,2) = "eI"
+	or substr(chg_dc,1,2) = "e1" or substr(chg_dc,1,2) = "ll" or substr(chg_dc,1,2) = "rc" or substr(chg_dc,1,4) = "chin" 
+	or substr(chg_dc,1,4) = "fren" or substr(chg_dc,1,15) = "Vendor canceled" or substr(chg_dc,1,15) = "Vendor accepted"
+	or substr(chg_dc,1,1) = "e" then delete;
+	if find(chg_dc, 'INC0') > 0 then delete;
+	if chg_dc = 'Invoice' then delete;
+	if substr(chg_dc,1,24) = 'Service Request Progress' then chg_dc = 'ServiceRequest'||substr(chg_dc,37,length(chg_dc));
+	chg_dc = compress(chg_dc);
+run;
+
+/* Check that we got them all */
+proc freq data=internalhistory2;
+	table chg_dc;
+run;
+
+/* Count service steps */
+proc sql;
+	create table internalhistory2a as
+	select distinct clm_nr, SVC_REQ_NR, chg_dc, count(*) as count
+	from internalhistory2
+	group by clm_nr, SVC_REQ_NR, chg_dc;
+quit;
+
+proc sort data=internalhistory2a;
+	by CLM_NR SVC_REQ_NR;
+run;
+
+/* Add count of each service step as a new variable (Services Screen -> History tab) */
+proc transpose data=internalhistory2a out=internalhistory2b prefix=chg_dc_;
+	by CLM_NR SVC_REQ_NR;
+	id  chg_dc;
+	var count;
+run;
+
+/* Merge on subro/litigation referral date as well as date that last recorded step was performed */
+proc sql;
+	create table internalservices as
+	select distinct a.*, datepart(b.asgn_dt) as referral_dt format mmddyy10., c.max_ACTN_PFRM_DT
+	from internalservices as a left join referral as b
+	on a.clm_nr = b.clm_nr
+	left join max_action_date as c
+	on a.clm_nr = c.clm_nr and a.SVC_REQ_NR = c.SVC_REQ_NR;
+quit;
+
+/* Identify duplicate service entries (entries with assign date one day later than original, etc) - 492,826 */
+
+/* Keep one record per service -- find max exposure close date and shrink dataset */
+proc sql;
+	create table internalservices2 as
+	select distinct a.clm_nr, a.SVC_REQ_NR, a.adjusternr, a.ADJUSTERNAME, a.ADJPOSITIONTITLE, a.adjusterreportingbranch, a.supervisorname, a.cats_nm, a.cats_nr, 
+	datepart(a.asgn_dt) as asgn_dt format mmddyy10., a.max_ACTN_PFRM_DT, max(datepart(a.EXPSR_CLS_DT)) as expsr_cls_dt format mmddyy10., min(a.referral_dt) as referral_dt format mmddyy10.,
+	datepart(a.lst_upd_dt) as lst_upd_dt format mmddyy10., min(datepart(a.EVNT_DT)) as EVNT_DT format mmddyy10., b.*
+	from internalservices as a
+	left join internalhistory2b as b
+	on a.clm_nr = b.clm_nr and a.SVC_REQ_NR = b.SVC_REQ_NR 
+	group by a.clm_nr, a.SVC_REQ_NR, a.adjusternr, a.ADJUSTERNAME, a.ADJPOSITIONTITLE, a.asgn_dt, a.max_ACTN_PFRM_DT;
+quit;
+
+		/* How often are supervisors assigned a service? 9007 */
+		data supervisors;
+			set internalservices2;
+			if ADJPOSITIONTITLE = 'Property Supervisor';
+		run;
+
+
+		/*CHECK ALL VALUES WITH ASSIGNMENT CANCELLED/SEE IF WE CAN REMOVE THESE RECORDS IF ASSIGNMENT NOT REOPENED */
+		/* 8822 */
+		proc sql;
+			create table reassignments as
+			select distinct clm_nr, svc_req_nr
+			from internalservices2
+			where chg_dc_assignmentcancelled >= 1 and chg_dc_assignmentreopened = .;
+		run;
+
+		/* Some of these still look like work was completed, but it's a small amount to begin with */
+		proc sql;
+			create table clm_wreassign as
+			select *
+			from internalservices2
+			where clm_nr in (select distinct clm_nr from reassignments);
+		quit;
+
+proc sort data=internalservices2;
+	by clm_nr asgn_dt;
+run;
+
+
+PROC SQL;
+	CREATE TABLE COUNT_clm AS
+	SELECT DISTINCT CLM_NR
+	FROM internalservices2;
+QUIT;
+
+/* Calculate cycle time */
+/* Remove reassignments, remove services assigned to supervisors */
+/* Use intck since this will exclude weekends */
+data internalservices2;
+	set internalservices2;
+	/* Referrals from earlier services shouldn't be used to calculate cycle time for later services */
+	if referral_dt < asgn_dt then referral_dt = .;
+		/* Selected definition of cycle time: days from service assignment to min(last exposure close date, manual subro referral date, manual litigation referral date) */
+		if referral_dt ne . then service_days = intck('WEEKDAY', asgn_dt, referral_dt);
+		else if expsr_cls_dt >= asgn_dt then service_days = intck('WEEKDAY', asgn_dt, expsr_cls_dt);
+		/* One additional condition if the dates are weird - use date of last historical step on the service */
+		else if max_ACTN_PFRM_DT >= asgn_dt then service_days = intck('WEEKDAY', asgn_dt, max_ACTN_PFRM_DT);
+
+	/* alternative definitions to compare (not using in model) */
+	action_close = intck('WEEKDAY', asgn_dt, max_ACTN_PFRM_DT);
+	last_update_cls = intck('WEEKDAY', asgn_dt, lst_upd_dt);
+	/* take differences to compare definitions */
+	compare_act = service_days - action_close;
+	compare_lst_upd = service_days - last_update_cls;
+
+	/* Fill in a value for missings (these get deleted before modeling) */
+	if service_days = . then service_days = -99;
+	if action_close = . then action_close = -99;
+	if last_update_cls = . then last_update_cls = -99;
+
+	/* remove services where assigned to a supervisor */
+	if findw(ADJPOSITIONTITLE,'Supervisor') = 0;
+
+	/* remove if assignment was cancelled and not reopened */
+	if chg_dc_assignmentcancelled >= 1 and chg_dc_assignmentreopened = . then delete;
+run;
+
+		/* Service_days is higher than other definitions (as I would expect) */
+		proc univariate data=internalservices2;
+			var service_days action_close last_update_cls compare_act compare_lst_upd;
+		run;
+
+		/* Look at types of external services */
+		proc freq data=vendorservices;
+			table SYMBLTY_ASGN_TYP_DC;
+		run;
+
+proc sql;
+	create table vendorservices2 as
+	select distinct clm_nr, compress(SYMBLTY_ASGN_TYP_DC, " -") as SYMBLTY_ASGN_TYP_DC, count(svc_req_nr) as count_service
+	from vendorservices
+	group by clm_nr, SYMBLTY_ASGN_TYP_DC;
+quit;
+
+/* Merge on counts of each vendor service type */
+proc transpose data=vendorservices2 out=vendorservices3 prefix=service_;
+	by clm_nr;
+	id SYMBLTY_ASGN_TYP_DC;
+	var count_service;
+run;
+
+/* Now that internal services have been shrunk down, merge vendor services onto internal service table */
+proc sql;
+	create table allservices as
+	select distinct a.*, b.*
+	from InternalServices2 as a left join vendorservices3 as b
+	on a.clm_nr = b.clm_nr;
+quit;
+
+/* Claim level attributes (info about the loss) */
+PROC SQL;
+    CONNECT USING CCDS;
+
+    CREATE TABLE ClaimInfo AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT DISTINCT
+	clm.clm_nr, 
+	EXP.EXPSR_TYP_DC, 
+	clm.LOSS_DT,
+	clm.cls_dt,
+	clm.loss_caus_dc,
+
+	/* Loss Location */
+	ad.AD_LN_1, 
+	ad.AD_LN_2, 
+	ad.AD_LN_3, 
+	ad.CTY_NM, 
+	ad.state_dc, 
+	ad.PSTL_CD, 
+	ad.CNTY_NM,
+
+	/* Special Circumstance */
+	clm.clm_dc,
+	CLM.SGMNT_DC,
+	CLM.BAD_FAITH_CLM_IN,
+	pol.pol_nr,
+	pol.pol_typ_dc,
+	pol.PRDC_CD,
+	pol.POL_FRM_TYP_DC,
+	pol.RTNG_PLN_DC,
+	pol.TOT_PRPTY_NR,
+	pol.COV_FRM_DC,
+	SUBSTR(POL.PRDC_CD,2,1) as PolicyST_CD,
+	CLM_ADDL_INFO.CNFDL_CNTC_CLM_IN, 
+	CLM_ADDL_INFO.MED_EXTNGSH_IN, 
+	CLM_ADDL_INFO.SPCL_CRC_IN, 
+	SPCL_CRC.BUS_CLS_DC, 
+	SPCL_CRC.BUS_CLS_CD, 
+	SPCL_CRC.BUS_CLS_OTHR, 
+	SPCL_CRC.SPEC_CRC, 
+	SPCL_CRC.SPCL_CRC_REL_TO_NTRL_ID, 
+	SPCL_CRC.LOB_DSCPL_MD, 
+	SPCL_CRC.LOB_DSCPL_PR, 
+	SPCL_CRC.LOB_DSCPL_LB, 
+	SPCL_CRC.LOB_DSCPL_WC, 
+	SPCL_CRC.LOB_DSCPL_MM, 
+	SPCL_CRC.LOB_DSCPL_Z, 
+	SPCL_CRC.COVID_CLNG, 
+	SPCL_CRC_REL_TO.SPCL_CRC_REL_TO_ID, 
+	SPCL_CRC_REL_TO.PMT_AMT,
+
+	/* Bad Faith */
+	ca.ASSOC_TTL,
+	cia.PRIM_CLM_IN,
+
+	/* Loss Details */
+	INCID.BLDG_STR_QT_TYP_DC,
+	INCID.BLDG_WALL_DMG_IN,
+	INCID.BLDG_WNDW_DMG_IN,
+	INCID.CLNG_DMG_IN,
+	INCID.DMG_AC_FRNCE_IN,
+	INCID.EXTR_PD_IN,
+	INCID.EXTR_WALL_DMG_IN,
+	INCID.FLR_DMG_IN,
+	INCID.GTTR_DMG_IN,
+	INCID.INTR_PD_IN,
+	INCID.OTHR_EXTR_DMG_IN,
+	INCID.OTHR_INTR_DMG_IN,
+	INCID.RF_DMG_IN,
+	INCID.RF_LEAK_IN,
+	INCID.SBTYP_DC as IncidentType,
+	INCID.LOSS_PARTY_DC as LossPartyType,
+	/* UPDATED 7/29/22 */
+	INCID.LOSS_SVRTY_DC,
+
+	/* Transaction */
+	TXN.CHK_NTRL_ID,
+	TXN.STT_DC         AS Status,
+    TXN.SBTYP_DC       AS SubType,
+    TXN.CST_CAT_DC     AS CostCategory,
+	TXN.CST_TYP_DC	   AS CostType, 
+	TXN.CMNT_DC		   AS TXNReason, 
+	TXN.RCVRY_CAT_DC   AS SubReason, 
+    TXN.PMT_TYP_DC     AS PaymentType,
+    ITM.RPTG_AM        AS ReportingAmount,
+    ITM.RESV_AM        AS ReserveAmount,
+    ITM.TXN_AM         AS TransactionAmount,
+    ITM.CLM_AM         AS ClaimAmount,
+    TXN.AIA_CD         AS AIACode
+
+from BRFADM.clm
+	left join BRFADM.ad on clm.loss_loc_id = ad.ad_ntrl_id 
+	          and ad.crnt_rec_in = 'Y' and ad.rec_ret_in = 'N'
+
+	left join  BRFADM.POL pol ON POL.POL_NTRL_ID = CLM.POL_NTRL_ID 	
+		and CLM.CRNT_REC_IN='Y' and CLM.REC_RET_IN='N' and pol.rec_ret_in = 'N' and pol.crnt_rec_in = 'Y'
+		
+	left join BRFADM.CLM_ADDL_INFO on CLM_ADDL_INFO.CLM_NTRL_ID = CLM.CLM_NTRL_ID 	
+		and CLM_ADDL_INFO.crnt_rec_in = 'Y' and CLM_ADDL_INFO.rec_ret_in = 'N'
+		
+	left join BRFADM.SPCL_CRC SPCL_CRC on SPCL_CRC.SPCL_CRC_NTRL_ID = CLM_ADDL_INFO.SPCL_CRC_NTRL_ID 	
+		and SPCL_CRC.REC_RET_IN = 'N' and spcl_crc.crnt_rec_in = 'Y'
+		
+	left join BRFADM.SPCL_CRC_REL_TO SPCL_CRC_REL_TO on SPCL_CRC.SPCL_CRC_REL_TO_NTRL_ID = SPCL_CRC_REL_TO.SPCL_CRC_REL_TO_NTRL_ID 	
+		and SPCL_CRC_REL_TO.CRNT_REC_IN = 'Y' and SPCL_CRC_REL_TO.rec_ret_in = 'N'
+
+	left join BRFADM.clm_info ci on ci.clm_nr = clm.clm_nr and ci.crnt_rec_in = 'Y' and ci.rec_ret_in = 'N'
+
+	left join BRFADM.clm_in_assoc cia on ci.clm_info_ntrl_id = cia.clm_info_ntrl_id
+
+	left join BRFADM.clm_assoc ca on ca.CLM_ASSOC_NTRL_ID =cia.CLM_ASSOC_NTRL_ID 
+
+	LEFT JOIN BRFADM.INCID ON CLM.CLM_NTRL_ID  = INCID.CLM_NTRL_ID and INCID.crnt_rec_in = 'Y' and INCID.rec_ret_in = 'N' 
+
+	LEFT JOIN BRFADM.EXPSR EXP ON CLM.CLM_NTRL_ID = EXP.CLM_NTRL_ID
+		AND INCID.INCID_NTRL_ID = EXP.INCID_NTRL_ID
+        AND EXP.REC_RET_IN = 'N' 
+        AND EXP.CRNT_REC_IN = 'Y' 
+    LEFT JOIN BRFADM.TXN TXN on EXP.EXPSR_NTRL_ID = TXN.EXPSR_NTRL_ID
+        AND TXN.REC_RET_IN = 'N'
+        AND TXN.CRNT_REC_IN = 'Y'
+    LEFT JOIN BRFADM.TXN_LN_ITM ITM on TXN.TXN_NTRL_ID = ITM.TXN_NTRL_ID
+        AND ITM.REC_RET_IN = 'N'
+        AND ITM.CRNT_REC_IN = 'Y'
+
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+		
+	where clm.crnt_rec_in = 'Y' and clm.rec_ret_in = 'N'
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+	and pol.pol_typ_dc = 'HP'
+	and TXN.SBTYP_DC = 'Payment'
+	/* Including all of these since otherwise I get negative payments */
+	and TXN.STT_DC in ('Submitted', 'Submitting', 'Voided', 'Recoded', 'PendingVoid', 'PendingStop', 'Transferred', 'PendingTransfer', 'Stopped')
+
+	);
+
+	/* Flags on claim */
+	CREATE TABLE Flags AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT DISTINCT
+	clm.clm_nr, 
+	/* HIGH RISK indicators - need to filter on_in on = 'Y' to get applicable indicators */
+	clm_in.ON_IN,
+	CLM_IN.IN_SBTYP_CD,
+	clm_in.in_sbtyp_dc
+
+from BRFADM.clm
+	left join BRFADM.clm_in on clm_in.clm_ntrl_id = clm.clm_ntrl_id and clm_in.crnt_rec_in = 'Y' and clm_in.rec_ret_in = 'N'
+
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+	where clm.crnt_rec_in = 'Y' and clm.rec_ret_in = 'N' and clm_in.on_in = 'Y'
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+	);
+
+	CREATE TABLE PublicAdj AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT DISTINCT
+	clm.clm_nr, 
+	CLM_CNTC.CNTC_NM,
+	CLM_CNTC.CLMT_IN,
+	CNTC.CNTC_NM,
+	CNTC.SBTYP_DC,
+	CLM_CNTC_ROL.ROL_DC
+
+	FROM BRFADM.CLM CLM
+	LEFT JOIN BRFADM.CLM_CNTC CLM_CNTC ON CLM.CLM_NTRL_ID = CLM_CNTC.CLM_NTRL_ID
+        AND CLM_CNTC.REC_RET_IN = 'N' 
+		AND CLM_CNTC.CRNT_REC_IN = 'Y'
+	LEFT JOIN BRFADM.CNTC CNTC ON CNTC.CNTC_NTRL_ID = CLM_CNTC.CNTC_NTRL_ID
+        AND CNTC.REC_RET_IN = 'N' 
+		AND CNTC.CRNT_REC_IN = 'Y'
+	LEFT JOIN BRFADM.CLM_CNTC_ROL CLM_CNTC_ROL ON CLM_CNTC.CLM_CNTC_NTRL_ID = CLM_CNTC_ROL.CLM_CNTC_NTRL_ID
+        AND CLM_CNTC_ROL.REC_RET_IN = 'N' 
+		AND CLM_CNTC_ROL.CRNT_REC_IN = 'Y'
+
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+	where clm.crnt_rec_in = 'Y' and clm.rec_ret_in = 'N' /*and clm_in.on_in = 'Y'*/
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+	and CLM_CNTC_ROL.ROL_DC = 'PublicAdjuster'
+	);
+
+
+
+	DISCONNECT FROM CCDS;
+
+QUIT;
+
+		proc freq data=claiminfo;
+			table pol_frm_typ_dc status;
+		run;
+
+		/* Use role table to see if a public adjuster was involved on the claim */
+		proc freq data=PublicAdj;
+			table sbtyp_dc rol_dc;
+		run;
+
+/* Shrink up to claim/exposure level */
+proc sql;
+	create table claiminfo2 as
+	select distinct CLM_NR, EXPSR_TYP_DC, LOSS_DT, LOSS_CAUS_DC, POL_FRM_TYP_DC, AD_LN_1, AD_LN_2, AD_LN_3, CTY_NM, STATE_DC, PSTL_CD, CNTY_NM, 
+	CLM_DC, SGMNT_DC, BAD_FAITH_CLM_IN, POL_NR, POL_TYP_DC, PRDC_CD, POLICYST_CD, CNFDL_CNTC_CLM_IN, MED_EXTNGSH_IN, SPCL_CRC_IN, 
+	BUS_CLS_DC, BUS_CLS_CD, BUS_CLS_OTHR, SPEC_CRC, SPCL_CRC_REL_TO_NTRL_ID, LOB_DSCPL_MD, LOB_DSCPL_PR, LOB_DSCPL_LB, LOB_DSCPL_WC, 
+	LOB_DSCPL_MM, LOB_DSCPL_Z, COVID_CLNG, SPCL_CRC_REL_TO_ID, PMT_AMT, ASSOC_TTL, PRIM_CLM_IN, BLDG_STR_QT_TYP_DC, BLDG_WALL_DMG_IN, 
+	BLDG_WNDW_DMG_IN, CLNG_DMG_IN, DMG_AC_FRNCE_IN, EXTR_PD_IN, EXTR_WALL_DMG_IN, FLR_DMG_IN, GTTR_DMG_IN, INTR_PD_IN, OTHR_EXTR_DMG_IN, 
+	OTHR_INTR_DMG_IN, RF_DMG_IN, RF_LEAK_IN, INCIDENTTYPE, LOSSPARTYTYPE, SUBTYPE, COSTCATEGORY, COSTTYPE, sum(TRANSACTIONAMOUNT) as transactioncost, 
+	AIACODE, LOSS_SVRTY_DC, 1 as count
+	from claiminfo
+	where status in ('Submitted', 'Submitting', 'Voided', 'Recoded', 'PendingVoid', 'PendingStop', 'Transferred', 'PendingTransfer', 'Stopped') and subtype = 'Payment'
+	group by CLM_NR, EXPSR_TYP_DC, LOSS_DT, LOSS_CAUS_DC, POL_FRM_TYP_DC, AD_LN_1, AD_LN_2, AD_LN_3, CTY_NM, STATE_DC, PSTL_CD, CNTY_NM, 
+	CLM_DC, SGMNT_DC, BAD_FAITH_CLM_IN, POL_NR, POL_TYP_DC, PRDC_CD, POLICYST_CD, CNFDL_CNTC_CLM_IN, MED_EXTNGSH_IN, SPCL_CRC_IN, 
+	BUS_CLS_DC, BUS_CLS_CD, BUS_CLS_OTHR, SPEC_CRC, SPCL_CRC_REL_TO_NTRL_ID, LOB_DSCPL_MD, LOB_DSCPL_PR, LOB_DSCPL_LB, LOB_DSCPL_WC, 
+	LOB_DSCPL_MM, LOB_DSCPL_Z, COVID_CLNG, SPCL_CRC_REL_TO_ID, PMT_AMT, ASSOC_TTL, PRIM_CLM_IN, BLDG_STR_QT_TYP_DC, BLDG_WALL_DMG_IN, 
+	BLDG_WNDW_DMG_IN, CLNG_DMG_IN, DMG_AC_FRNCE_IN, EXTR_PD_IN, EXTR_WALL_DMG_IN, FLR_DMG_IN, GTTR_DMG_IN, INTR_PD_IN, OTHR_EXTR_DMG_IN, 
+	OTHR_INTR_DMG_IN, RF_DMG_IN, RF_LEAK_IN, INCIDENTTYPE, LOSSPARTYTYPE, SUBTYPE, COSTCATEGORY, COSTTYPE
+	;
+quit;
+
+
+/* Transpose: costcategory/transcost (focus on payments), losscause (with indicator), expsr_typ_dc */
+
+proc sql;
+	create table claiminfo4 as
+	select distinct CLM_NR, COSTCATEGORY, sum(TRANSACTIONAMOUNT) as transactioncost, 1 as count
+	from claiminfo
+	where status in ('Submitted', 'Submitting', 'Voided', 'Recoded', 'PendingVoid', 'PendingStop', 'Transferred', 'PendingTransfer', 'Stopped') and subtype = 'Payment'
+	group by CLM_NR, COSTCATEGORY
+	;
+quit;
+
+proc sort data=claiminfo4;
+	by CLM_NR;
+run;
+
+proc transpose data=claiminfo4 out=claiminfo4b prefix=costcat_;
+	by CLM_NR;
+	id  COSTCATEGORY;
+	var transactioncost;
+run;
+
+proc sql;
+	create table claiminfo5 as
+	select distinct CLM_NR, loss_caus_dc, 1 as count
+	from claiminfo
+	;
+quit;
+
+/* Merge on indicators for all of the loss causes */
+proc transpose data=claiminfo5 out=claiminfo5b prefix=losscaus_;
+	by CLM_NR;
+	id loss_caus_dc;
+	var count;
+run;
+
+
+proc sql;
+	create table claiminfo6 as
+	select distinct CLM_NR, expsr_typ_dc, 1 as count
+	from claiminfo
+	;
+quit;
+
+proc transpose data=claiminfo6 out=claiminfo6b prefix=expsr_;
+	by CLM_NR;
+	id expsr_typ_dc;
+	var count;
+run;
+
+proc sql;
+	create table claiminfo7 as
+	select distinct CLM_NR, INCIDENTTYPE, 1 as count
+	from claiminfo
+	;
+quit;
+
+proc transpose data=claiminfo7 out=claiminfo7b prefix=incidtyp_;
+	by CLM_NR;
+	id INCIDENTTYPE;
+	var count;
+run;
+
+/* Convert Y/N indicators to 0/1 */
+data claiminfo8;
+	set claiminfo2;
+	if PRIM_CLM_IN = 'Y' then PRIM_CLM_IN_num = 1; else PRIM_CLM_IN_num = 0;
+	if BAD_FAITH_CLM_IN = 'Y' then BAD_FAITH_CLM_IN_num = 1; else BAD_FAITH_CLM_IN_num = 0;
+	if BLDG_STR_QT_TYP_DC = 'Y' then BLDG_STR_QT_TYP_DC_num = 1; else BLDG_STR_QT_TYP_DC_num = 0;
+	if BLDG_WALL_DMG_IN = 'Y' then BLDG_WALL_DMG_IN_num = 1; else BLDG_WALL_DMG_IN_num = 0;
+	if BLDG_WNDW_DMG_IN = 'Y' then BLDG_WNDW_DMG_IN_num = 1; else BLDG_WNDW_DMG_IN_num = 0;
+	if CLNG_DMG_IN = 'Y' then CLNG_DMG_IN_num = 1; else CLNG_DMG_IN_num = 0;
+	if DMG_AC_FRNCE_IN = 'Y' then DMG_AC_FRNCE_IN_num = 1; else DMG_AC_FRNCE_IN_num = 0;
+	if EXTR_PD_IN = 'Y' then EXTR_PD_IN_num = 1; else EXTR_PD_IN_num = 0;
+	if EXTR_WALL_DMG_IN = 'Y' then EXTR_WALL_DMG_IN_num = 1; else EXTR_WALL_DMG_IN_num = 0;
+	if FLR_DMG_IN = 'Y' then FLR_DMG_IN_num = 1; else FLR_DMG_IN_num = 0;
+	if GTTR_DMG_IN = 'Y' then GTTR_DMG_IN_num = 1; else GTTR_DMG_IN_num = 0;
+	if INTR_PD_IN = 'Y' then INTR_PD_IN_num = 1; else INTR_PD_IN_num = 0;
+	if OTHR_EXTR_DMG_IN = 'Y' then OTHR_EXTR_DMG_IN_num = 1; else OTHR_EXTR_DMG_IN_num = 0;
+	if OTHR_INTR_DMG_IN = 'Y' then OTHR_INTR_DMG_IN_num = 1; else OTHR_INTR_DMG_IN_num = 0;
+	if RF_DMG_IN = 'Y' then RF_DMG_IN_num = 1; else RF_DMG_IN_num = 0;
+	if RF_LEAK_IN = 'Y' then RF_LEAK_IN_num = 1; else RF_LEAK_IN_num = 0;
+
+	/*convert LOSS_SVRTY_DC to 0,1,2 (UPDATED 7/29/22) */
+	if LOSS_SVRTY_DC = 'Moderate' then LOSS_SVRTY_CAT = 1;
+		else if LOSS_SVRTY_DC = 'Severe' then LOSS_SVRTY_CAT = 2;
+		else LOSS_SVRTY_CAT = 0;
+run;
+
+/* Summarize -- take max of indicators at claim level */
+proc sql;
+	create table claiminfo8b as
+	select distinct clm_nr, loss_dt, POL_FRM_TYP_DC, AD_LN_1, AD_LN_2, AD_LN_3, CTY_NM, STATE_DC, PSTL_CD, CNTY_NM, POL_NR, POL_TYP_DC, PRDC_CD, POLICYST_CD, max(BAD_FAITH_CLM_IN_num) as BAD_FAITH_CLM_IN, 
+	max(PRIM_CLM_IN_num) as PRIM_CLM_IN, max(BLDG_STR_QT_TYP_DC_num) as BLDG_STR_QT_TYP_DC, max(BLDG_WALL_DMG_IN_num) as BLDG_WALL_DMG_IN, 
+	max(BLDG_WNDW_DMG_IN_num) as BLDG_WNDW_DMG_IN, max(CLNG_DMG_IN_num) as CLNG_DMG_IN, max(DMG_AC_FRNCE_IN_num) as DMG_AC_FRNCE_IN, 
+	max(EXTR_PD_IN_num) as EXTR_PD_IN, max(EXTR_WALL_DMG_IN_num) as EXTR_WALL_DMG_IN, max(FLR_DMG_IN_num) as FLR_DMG_IN, 
+	max(GTTR_DMG_IN_num) as GTTR_DMG_IN, max(INTR_PD_IN_num) as INTR_PD_IN, max(OTHR_EXTR_DMG_IN_num) as OTHR_EXTR_DMG_IN, max(LOSS_SVRTY_CAT) as LOSS_SVRTY_CAT,
+	max(OTHR_INTR_DMG_IN_num) as OTHR_INTR_DMG_IN, max(RF_DMG_IN_num) as RF_DMG_IN, max(RF_LEAK_IN_num) as RF_LEAK_IN, sum(transactioncost) as claimcost
+	from claiminfo8
+	group by clm_nr, loss_dt, POL_FRM_TYP_DC, AD_LN_1, AD_LN_2, AD_LN_3, CTY_NM, STATE_DC, PSTL_CD, CNTY_NM, POL_NR, POL_TYP_DC, PRDC_CD, POLICYST_CD;
+quit;
+
+proc sql;
+	create table flags2 as
+	select distinct clm_nr, in_sbtyp_dc, 1 as count
+	from flags
+	where in_sbtyp_dc ne 'FlagDetails';
+quit;
+
+proc transpose data=flags2 out=flags2b prefix=flag_;
+	by CLM_NR;
+	id in_sbtyp_dc;
+	var count;
+run;
+
+/* Merge everything together (service info and transposed claim info) */
+proc sql;
+	create table allservices as
+	select distinct a.*, b.*, c.*, d.*, e.*, f.*, g.*, h.rol_dc
+	from allservices as a left join claiminfo4b as b
+	on a.clm_nr = b.clm_nr
+	left join claiminfo5b as c
+	on a.clm_nr = c.clm_nr
+	left join claiminfo6b as d
+	on a.clm_nr = d.clm_nr
+	left join claiminfo7b as e
+	on a.clm_nr = e.clm_nr
+	left join claiminfo8b as f
+	on a.clm_nr = f.clm_nr
+	left join flags2b as g
+	on a.clm_nr = g.clm_nr
+	left join publicadj as h
+	on a.clm_nr = h.clm_nr;
+quit;
+
+/* Fill in default values for missings */
+data allservices;
+	set allservices;
+	/* create array n, of whatever length is required (*), for all numeric variables */
+	array n[*] _numeric_;
+	/* create array c, of whatever length is required (*), for all character variables */
+	array c[*] _character_;
+
+	/* loop through all array elements and replace with -99 if they are missing */
+	do i=1 to hbound(n);
+		if n[i] = . then n[i]  = 0;
+		/* adding this in for small negative values in cost categories */
+		if n[i] < 0 and n[i] > -.01 then n[i] = 0;
+	end;
+	drop i; 
+
+	/* loop through all array elements and replace with -99 if they are missing */
+	do j=1 to hbound(c);
+		if c[j] = '' then c[j]  = "Blank";
+	end;
+	drop j;
+
+run; 
+
+		/* Not using this, but keeping it here */
+		/* 4/5/2022: Add additional y = number of services assigned per month to an adjuster */
+		proc sql;
+			create table count_names as
+			select distinct adjusternr, ADJUSTERNAME, ADJPOSITIONTITLE
+			from internalservices2;
+		quit;
+
+
+		proc sql;
+			create table count_services as
+			select distinct adjusternr, month(asgn_dt) as month_asgn, year(asgn_dt) as year_asgn, count(svc_req_nr) as svc_count
+			from internalservices2
+			group by adjusternr, month_asgn, year_asgn;
+		quit;
+
+		/* Check if these criteria are good (if name/position changes) */
+		proc sql;
+			create table allservices as
+			select distinct a.*, b.svc_count
+			from allservices as a left join count_services as b
+			on a.ADJUSTERNR = b.ADJUSTERNR and month(a.asgn_dt) = b.month_asgn and year(a.asgn_dt) = b.year_asgn;
+		quit;
+
+/* Save dataset */
+data services_report;
+	set allservices;
+run;
+
+/* Few instances where multiple cat names showing up on same claim. Fix that here */
+data services_report;
+	set services_report;
+	if cats_nm ne 'Blank' then cats_nm = 'CAT';
+run;
+
+proc sql;
+	create table services_report as
+	select distinct *
+	from services_report;
+quit;
+
+/*%SummaryStats(propadj.services_report, _ALL_, dset_EDA, MissVal=-99, MissVal_C='#', count_unique=0);*/
+
+
+/* Alt y option - count activities from service history screen (not using) */
+data services_report;
+	set services_report;
+	sum_chg_dc = sum(chg_dc_AssignmentCancelled, 
+	chg_dc_AssignmentsenttoSymbility, 
+	chg_dc_Createdservices, 
+	chg_dc_Requestedservicefromvendo, 
+	chg_dc_EstimateApproved, 
+	chg_dc_EstimateCompleted, 
+	chg_dc_ServiceRequestInProgress, 
+	chg_dc_ServiceRequestWorkComplet, 
+	chg_dc_AssignmentCompleted, 
+	chg_dc_InspectionPerformed, 
+	chg_dc_InspectionScheduled, 
+	chg_dc_InsuredContacted, 
+	chg_dc_ServiceRequestCanceled, 
+	chg_dc_SupplementApproved, 
+	chg_dc_AssignmentReopened, 
+	chg_dc_Vendorcompletedwork, 
+	chg_dc_Addedinvoice, 
+	chg_dc_EstimateDeleted, 
+	chg_dc_EstimateCanceled, 
+	chg_dc_Approvedinvoice, 
+	chg_dc_PaidInvoice, 
+	chg_dc_SupplementCanceled, 
+	chg_dc_EstimateReinstated, 
+	chg_dc_SupplementDeleted, 
+	chg_dc_SupplementReinstated, 
+	chg_dc_UnpaidInvoice, 
+	chg_dc_JobScheduled, 
+	chg_dc_Invoice0markedasunpaid, 
+	chg_dc_JobCompleted, 
+	chg_dc_JobStarted);
+run;
+
+/* Home db decode macro */
+%include "/ere/local/shared/actuarial/Database Updates/Macros/Transactional Statistical Code Decode Macro.sas";
+libname home '/ere/warehouse/homeowners';
+
+data home_vars;
+	set home.homeowners;
+	where PolicyEffectiveDate >= mdy(01,1,2014) and MajorPeril in ('233' '664' '665' '668' '669' '663') and LatestTransactionIndicator = 'Y';
+run;
+
+%DecodeStatCodes(home_vars, home_vars, CoverageDwelling CoverageProperty Coverage PolicyForm Form Deductible Limit MPDCommAuto NumberofFamilies
+LossSettlementBAA LossSettlementContents LossSettlementDwelling Construction CoverageBAA AlarmSystem );
+
+proc freq data=home_vars;
+	tables policyform coverage policyform*coverage;
+run;
+
+data home_vars2;
+	set home_vars;
+	format match_unit $25.;
+	if policyform in ('Ultracover', 'Broadcover', 'Extracover', 'Condocover', 'TenantCover', 'MarketValue') then match_unit = policyform;
+		else if policyform = 'Dwelling' and coverage = 'Primary' then match_unit = 'ESHomePrmryRsdnc';
+		else if policyform = 'Dwelling' and coverage = 'Secondary' then match_unit = 'ESHomeScndryRsdnc';
+		else if policyform = 'Dwelling' and coverage = 'Rented' then match_unit = 'ESRentalDwelling';
+		else if policyform = 'Tenant' and coverage = 'Primary' then match_unit = 'ESTenantPrmryRsdnc';
+		else if policyform = 'Tenant' and coverage = 'Secondary' then match_unit = 'ESTenantScndryRsdnc';
+		else if policyform = 'Condo' and coverage = 'Rented' then match_unit = 'ESRentalCondoUnit';
+		else if policyform = 'Condo' and coverage = 'Primary' then match_unit = 'ESCondoPrmryRsdnc';
+		else if policyform = 'Condo' and coverage = 'Secondary' then match_unit = 'ESCondoScndryRsdnc';
+		else if policyform = 'HE-7' then match_unit = 'Ultracover';
+		else if policyform = 'HO-2' then match_unit = 'Broadcover';
+		else if policyform = 'HO-4' then match_unit = 'TenantCover';
+		else if policyform = 'HO-6' then match_unit = 'Condocover';
+		else if policyform = 'HO-8' then match_unit = 'MarketValue';
+		else if substr(policyform,length(policyform)-8,length(policyform)) = 'Seasonal' then match_unit = substr(policyform,1,length(policyform)-8);
+run;
+
+
+proc sql;
+	create table home_mps as
+	select distinct policynumber, PolicyModule, MajorPeril, CoverageEffectiveDate, CoverageExpirationDate
+	from home_vars2;
+quit;
+
+
+proc sql;
+	create table home_vars3 as
+	select distinct policynumber, PolicyModule, 
+		MasterCompany, 
+		PolicyCompany, 
+		PolicyEffectiveYear, 
+		count(UnitNumber) as count_units, 
+		Sequence, 
+		TypeBureau, 
+/*		MajorPeril, */
+		PolicyEffectiveDate,
+		PolicyExpirationDate,
+		CoverageEffectiveDate, 
+		CoverageExpirationDate, 
+		RiskState, 
+		RiskZIP, 
+		ZIP4, 
+		RiskZone, 
+		AgentNumber, 
+		InceptionDate, 
+		Class, 
+		ServiceCode, 
+		SystemEntry, 
+		AmountOfInsurance, 
+		OP, 
+		WP, 
+		EP, 
+		WE, 
+		EE, 
+/*		WPConcentrationOfRisk, */
+/*		EPConcentrationOfRisk, */
+/*		WPNCRB, */
+/*		EPNCRB, */
+		AdvanceQuoteDays, 
+		AdvanceQuoteYear, 
+		AdvanceQuote, 
+		AlarmSystem, 
+		BasementFinishAgent, 
+		CerpClaims, 
+		CommercialOccupancy, 
+		ConsentToRate, 
+		Construction, 
+		CoverageBAA, 
+		CoverageBPercent, 
+		CoverageDwelling, 
+		CoverageProperty, 
+/*		Coverage, */
+		match_unit,
+		CreditSurcharge, 
+		CurbWeight, 
+		CurrentModel, 
+		DeductibleFire, 
+		DeductibleHail, 
+		DeductibleHurricane, 
+		DeductibleTheft, 
+		DeductibleTier, 
+		DeductibleWater, 
+		DeductibleWind, 
+		Deductible, 
+		Deviation, 
+		Elevation, 
+		EngineDisplacement, 
+		ExpectedLongevity, 
+		FireHydrant, 
+		FireStationDistance, 
+		Fortified, 
+		HUC12, 
+		HurricaneGroup, 
+		IncidentalBusiness, 
+		IncreaseDecreaseProperty, 
+		IncreasedBAA, 
+		IncreasedBusinessProperty, 
+		IncreasedComputer, 
+		IncreasedCoverageDwelling, 
+		IncreasedLossAssessment, 
+		IncreasedOrdinanceLaw, 
+		IncreasedRoofing, 
+		IncreasedSewerDrain, 
+		InlandFloodMinimumPremium, 
+		InlandFloodScore, 
+		InsuredAge, 
+		LatLonConfidence, 
+		LatLonSource, 
+/*		Latitude, */
+		LengthOfResidence, 
+		LifeTenant, 
+		LimitMedicalPayments, 
+		Limit, 
+/*		Longitude, */
+		LossSettlementBAA, 
+		LossSettlementContents, 
+		LossSettlementDwelling, 
+		MPDAuto, 
+		MPDCommAuto, 
+		MPDGroup, 
+		MPDLife, 
+		MPDUmbrella, 
+		MultiDwellingSplit, 
+		NewChargeableClaim, 
+		NumberOfBathrooms, 
+		NumberOfCargoVans, 
+		NumberOfCylinders, 
+		NumberOfFamilies, 
+		NumberOfFireplaces, 
+		NumberOfMiniVans, 
+		NumberOfPickups, 
+		NumberOfRooms, 
+		NumberOfStories, 
+		OrdinanceOrLaw, 
+		PayPlan, 
+		PaymentMethod, 
+/*		PolicyForm, */
+		PreviousLatePays, 
+		ProtectionClass, 
+		RollonDwelling, 
+		RollonProperty, 
+		Sprinkler, 
+		SquareFootage, 
+		StormShutter, 
+		StormSurgeScore, 
+		UnderwritingScore, 
+		UnderwritingTierCondo, 
+		UnderwritingTierFire, 
+		UnderwritingTierHail, 
+		UnderwritingTierHurricane, 
+		UnderwritingTierLiability, 
+		UnderwritingTierMedical, 
+		UnderwritingTierTenant, 
+		UnderwritingTierTheft, 
+		UnderwritingTierWater, 
+		UnderwritingTierWind, 
+		WindHailExclusion, 
+		YearsWithErieSecure, 
+		YearsWithErie, 
+		ZIPMatchLevel, 
+		ARatedBaseRate, 
+		ARatedOption, 
+		AmountOfInsuranceIM, 
+		BlanketIndicator, 
+		Breakage, 
+		DuplicateRecords, 
+		Form, 
+		IRPM, 
+		RadiusOfOperation, 
+		Theft, 
+		Vandalism, 
+		VaultsSafes, 
+		ConstructionYear, 
+		InsuranceScoreTier, 
+		InsuranceScoreNumber, 
+		PoolPresent, 
+		Program, 
+		TechnicalPrice, 
+		ExpectedLossNumber, 
+		PercentFire, 
+		PercentHail, 
+		PercentHurricane, 
+		PercentLiability, 
+		PercentMedical, 
+		PercentTheft, 
+		PercentWater, 
+		PercentWind, 
+		Inforce
+	from home_vars2
+	where MajorPeril in ('233');
+quit;
+
+/* Match 1: merge at most granular level first: policy/mod/coverage/risk zip9 */
+proc sql;
+	create table mergedata1 as
+	select distinct a.*, b.PolicyModule, 
+		b.MasterCompany, 
+		b.PolicyCompany, 
+		b.PolicyEffectiveYear, 
+		b.Sequence, 
+		b.TypeBureau, 
+/*		b.MajorPeril, */
+		b.CoverageEffectiveDate, 
+		b.CoverageExpirationDate, 
+		b.RiskState, 
+		b.RiskZIP, 
+		b.ZIP4, 
+		b.RiskZone, 
+		b.AgentNumber, 
+		b.InceptionDate, 
+		b.Class, 
+		b.ServiceCode, 
+		b.SystemEntry, 
+		b.AmountOfInsurance, 
+		b.AmountOfInsurance,
+		b.AmountOfInsurance,
+		b.OP, 
+		b.WP, 
+		b.EP, 
+		b.WE, 
+		b.EE, 
+/*		b.WPConcentrationOfRisk, */
+/*		b.EPConcentrationOfRisk, */
+/*		b.WPNCRB, */
+/*		b.EPNCRB, */
+		b.AdvanceQuoteDays, 
+		b.AdvanceQuoteYear, 
+		b.AdvanceQuote, 
+		b.AlarmSystem, 
+		b.BasementFinishAgent, 
+		b.CerpClaims, 
+		b.CommercialOccupancy, 
+		b.ConsentToRate, 
+		b.Construction, 
+		b.CoverageBAA, 
+		b.CoverageBPercent, 
+		b.CoverageDwelling, 
+		b.CoverageProperty, 
+/*		b.Coverage, */
+		b.CreditSurcharge, 
+		b.CurbWeight, 
+		b.CurrentModel, 
+		b.DeductibleFire, 
+		b.DeductibleHail, 
+		b.DeductibleHurricane, 
+		b.DeductibleTheft, 
+		b.DeductibleTier, 
+		b.DeductibleWater, 
+		b.DeductibleWind, 
+		b.Deductible, 
+		b.Deviation, 
+		b.Elevation, 
+		b.EngineDisplacement, 
+		b.ExpectedLongevity, 
+		b.FireHydrant, 
+		b.FireStationDistance, 
+		b.Fortified, 
+		b.HUC12, 
+		b.HurricaneGroup, 
+		b.IncidentalBusiness, 
+		b.IncreaseDecreaseProperty, 
+		b.IncreasedBAA, 
+		b.IncreasedBusinessProperty, 
+		b.IncreasedComputer, 
+		b.IncreasedCoverageDwelling, 
+		b.IncreasedLossAssessment, 
+		b.IncreasedOrdinanceLaw, 
+		b.IncreasedRoofing, 
+		b.IncreasedSewerDrain, 
+		b.InlandFloodMinimumPremium, 
+		b.InlandFloodScore, 
+		b.InsuredAge, 
+		b.LatLonConfidence, 
+		b.LatLonSource, 
+/*		b.Latitude, */
+		b.LengthOfResidence, 
+		b.LifeTenant, 
+		b.LimitMedicalPayments, 
+		b.Limit, 
+/*		b.Longitude, */
+		b.LossSettlementBAA, 
+		b.LossSettlementContents, 
+		b.LossSettlementDwelling, 
+		b.MPDAuto, 
+		b.MPDCommAuto, 
+		b.MPDGroup, 
+		b.MPDLife, 
+		b.MPDUmbrella, 
+		b.MultiDwellingSplit, 
+		b.NewChargeableClaim, 
+		b.NumberOfBathrooms, 
+		b.NumberOfCargoVans, 
+		b.NumberOfCylinders, 
+		b.NumberOfFamilies, 
+		b.NumberOfFireplaces, 
+		b.NumberOfMiniVans, 
+		b.NumberOfPickups, 
+		b.NumberOfRooms, 
+		b.NumberOfStories, 
+		b.OrdinanceOrLaw, 
+		b.PayPlan, 
+		b.PaymentMethod, 
+/*		b.PolicyForm, */
+		b.PreviousLatePays, 
+		b.ProtectionClass, 
+		b.RollonDwelling, 
+		b.RollonProperty, 
+		b.Sprinkler, 
+		b.SquareFootage, 
+		b.StormShutter, 
+		b.StormSurgeScore, 
+		b.UnderwritingScore, 
+		b.UnderwritingTierCondo, 
+		b.UnderwritingTierFire, 
+		b.UnderwritingTierHail, 
+		b.UnderwritingTierHurricane, 
+		b.UnderwritingTierLiability, 
+		b.UnderwritingTierMedical, 
+		b.UnderwritingTierTenant, 
+		b.UnderwritingTierTheft, 
+		b.UnderwritingTierWater, 
+		b.UnderwritingTierWind, 
+		b.WindHailExclusion, 
+		b.YearsWithErieSecure, 
+		b.YearsWithErie, 
+		b.ZIPMatchLevel, 
+		b.ARatedBaseRate, 
+		b.ARatedOption, 
+		b.AmountOfInsuranceIM, 
+		b.BlanketIndicator, 
+		b.Breakage, 
+		b.DuplicateRecords, 
+		b.Form, 
+		b.IRPM, 
+		b.RadiusOfOperation, 
+		b.Theft, 
+		b.Vandalism, 
+		b.VaultsSafes, 
+		b.ConstructionYear, 
+		b.InsuranceScoreTier, 
+		b.InsuranceScoreNumber, 
+		b.PoolPresent, 
+		b.Program, 
+		b.TechnicalPrice, 
+		b.ExpectedLossNumber, 
+		b.PercentFire, 
+		b.PercentHail, 
+		b.PercentHurricane, 
+		b.PercentLiability, 
+		b.PercentMedical, 
+		b.PercentTheft, 
+		b.PercentWater, 
+		b.PercentWind, 
+		b.Inforce
+
+	from services_report as a left join home_vars3 as b
+	on a.pol_nr = b.policynumber and put(datepart(a.loss_dt), YYMMDD10.) >= put(b.Coverageeffectivedate, YYMMDD10.) and put(datepart(a.loss_dt), YYMMDD10.) < put(b.Coverageexpirationdate, YYMMDD10.)
+	and compress(a.pstl_cd,' -') = b.riskzip||b.zip4 and a.POL_FRM_TYP_DC = b.match_unit;
+quit;
+
+/* 42k in 2a, 434k in 2b */
+data mergedata2a mergedata2b;
+	set mergedata1;
+	if Inforce = '' then output mergedata2b; else output mergedata2a;
+run;
+
+/* Match 2: match on policy/mod/coverage/risk zip5 */
+proc sql;
+	create table mergedata2 as
+	select distinct a.*, b.PolicyModule, 
+		b.MasterCompany, 
+		b.PolicyCompany, 
+		b.PolicyEffectiveYear, 
+		b.Sequence, 
+		b.TypeBureau, 
+/*		b.MajorPeril, */
+		b.CoverageEffectiveDate, 
+		b.CoverageExpirationDate, 
+		b.RiskState, 
+		b.RiskZIP, 
+		b.ZIP4, 
+		b.RiskZone, 
+		b.AgentNumber, 
+		b.InceptionDate, 
+		b.Class, 
+		b.ServiceCode, 
+		b.SystemEntry, 
+		b.AmountOfInsurance, 
+		b.AmountOfInsurance,
+		b.AmountOfInsurance,
+		b.OP, 
+		b.WP, 
+		b.EP, 
+		b.WE, 
+		b.EE, 
+/*		b.WPConcentrationOfRisk, */
+/*		b.EPConcentrationOfRisk, */
+/*		b.WPNCRB, */
+/*		b.EPNCRB, */
+		b.AdvanceQuoteDays, 
+		b.AdvanceQuoteYear, 
+		b.AdvanceQuote, 
+		b.AlarmSystem, 
+		b.BasementFinishAgent, 
+		b.CerpClaims, 
+		b.CommercialOccupancy, 
+		b.ConsentToRate, 
+		b.Construction, 
+		b.CoverageBAA, 
+		b.CoverageBPercent, 
+		b.CoverageDwelling, 
+		b.CoverageProperty, 
+/*		b.Coverage, */
+		b.CreditSurcharge, 
+		b.CurbWeight, 
+		b.CurrentModel, 
+		b.DeductibleFire, 
+		b.DeductibleHail, 
+		b.DeductibleHurricane, 
+		b.DeductibleTheft, 
+		b.DeductibleTier, 
+		b.DeductibleWater, 
+		b.DeductibleWind, 
+		b.Deductible, 
+		b.Deviation, 
+		b.Elevation, 
+		b.EngineDisplacement, 
+		b.ExpectedLongevity, 
+		b.FireHydrant, 
+		b.FireStationDistance, 
+		b.Fortified, 
+		b.HUC12, 
+		b.HurricaneGroup, 
+		b.IncidentalBusiness, 
+		b.IncreaseDecreaseProperty, 
+		b.IncreasedBAA, 
+		b.IncreasedBusinessProperty, 
+		b.IncreasedComputer, 
+		b.IncreasedCoverageDwelling, 
+		b.IncreasedLossAssessment, 
+		b.IncreasedOrdinanceLaw, 
+		b.IncreasedRoofing, 
+		b.IncreasedSewerDrain, 
+		b.InlandFloodMinimumPremium, 
+		b.InlandFloodScore, 
+		b.InsuredAge, 
+		b.LatLonConfidence, 
+		b.LatLonSource, 
+/*		b.Latitude, */
+		b.LengthOfResidence, 
+		b.LifeTenant, 
+		b.LimitMedicalPayments, 
+		b.Limit, 
+/*		b.Longitude, */
+		b.LossSettlementBAA, 
+		b.LossSettlementContents, 
+		b.LossSettlementDwelling, 
+		b.MPDAuto, 
+		b.MPDCommAuto, 
+		b.MPDGroup, 
+		b.MPDLife, 
+		b.MPDUmbrella, 
+		b.MultiDwellingSplit, 
+		b.NewChargeableClaim, 
+		b.NumberOfBathrooms, 
+		b.NumberOfCargoVans, 
+		b.NumberOfCylinders, 
+		b.NumberOfFamilies, 
+		b.NumberOfFireplaces, 
+		b.NumberOfMiniVans, 
+		b.NumberOfPickups, 
+		b.NumberOfRooms, 
+		b.NumberOfStories, 
+		b.OrdinanceOrLaw, 
+		b.PayPlan, 
+		b.PaymentMethod, 
+/*		b.PolicyForm, */
+		b.PreviousLatePays, 
+		b.ProtectionClass, 
+		b.RollonDwelling, 
+		b.RollonProperty, 
+		b.Sprinkler, 
+		b.SquareFootage, 
+		b.StormShutter, 
+		b.StormSurgeScore, 
+		b.UnderwritingScore, 
+		b.UnderwritingTierCondo, 
+		b.UnderwritingTierFire, 
+		b.UnderwritingTierHail, 
+		b.UnderwritingTierHurricane, 
+		b.UnderwritingTierLiability, 
+		b.UnderwritingTierMedical, 
+		b.UnderwritingTierTenant, 
+		b.UnderwritingTierTheft, 
+		b.UnderwritingTierWater, 
+		b.UnderwritingTierWind, 
+		b.WindHailExclusion, 
+		b.YearsWithErieSecure, 
+		b.YearsWithErie, 
+		b.ZIPMatchLevel, 
+		b.ARatedBaseRate, 
+		b.ARatedOption, 
+		b.AmountOfInsuranceIM, 
+		b.BlanketIndicator, 
+		b.Breakage, 
+		b.DuplicateRecords, 
+		b.Form, 
+		b.IRPM, 
+		b.RadiusOfOperation, 
+		b.Theft, 
+		b.Vandalism, 
+		b.VaultsSafes, 
+		b.ConstructionYear, 
+		b.InsuranceScoreTier, 
+		b.InsuranceScoreNumber, 
+		b.PoolPresent, 
+		b.Program, 
+		b.TechnicalPrice, 
+		b.ExpectedLossNumber, 
+		b.PercentFire, 
+		b.PercentHail, 
+		b.PercentHurricane, 
+		b.PercentLiability, 
+		b.PercentMedical, 
+		b.PercentTheft, 
+		b.PercentWater, 
+		b.PercentWind, 
+		b.Inforce
+
+	from services_report as a left join home_vars3 as b
+	on a.pol_nr = b.policynumber and put(datepart(a.loss_dt), YYMMDD10.) >= put(b.Coverageeffectivedate, YYMMDD10.) and put(datepart(a.loss_dt), YYMMDD10.) < put(b.Coverageexpirationdate, YYMMDD10.)
+	and substr(a.pstl_cd,1,5) = b.riskzip and a.POL_FRM_TYP_DC = b.match_unit
+	where clm_nr in (select distinct clm_nr from mergedata2b);
+quit;
+
+/* 213k in 2a, 220k in 3b*/
+data mergedata3a mergedata3b;
+	set mergedata2;
+	if inforce = '' then output mergedata3b;
+	else output mergedata3a;
+run;
+
+/* Match 3: match on policy/mod/risk zip 9 */
+proc sql;
+	create table mergedata3 as
+	select distinct a.*, b.PolicyModule, 
+		b.MasterCompany, 
+		b.PolicyCompany, 
+		b.PolicyEffectiveYear, 
+		b.Sequence, 
+		b.TypeBureau, 
+/*		b.MajorPeril, */
+		b.CoverageEffectiveDate, 
+		b.CoverageExpirationDate, 
+		b.RiskState, 
+		b.RiskZIP, 
+		b.ZIP4, 
+		b.RiskZone, 
+		b.AgentNumber, 
+		b.InceptionDate, 
+		b.Class, 
+		b.ServiceCode, 
+		b.SystemEntry, 
+		b.AmountOfInsurance, 
+		b.AmountOfInsurance,
+		b.AmountOfInsurance,
+		b.OP, 
+		b.WP, 
+		b.EP, 
+		b.WE, 
+		b.EE, 
+/*		b.WPConcentrationOfRisk, */
+/*		b.EPConcentrationOfRisk, */
+/*		b.WPNCRB, */
+/*		b.EPNCRB, */
+		b.AdvanceQuoteDays, 
+		b.AdvanceQuoteYear, 
+		b.AdvanceQuote, 
+		b.AlarmSystem, 
+		b.BasementFinishAgent, 
+		b.CerpClaims, 
+		b.CommercialOccupancy, 
+		b.ConsentToRate, 
+		b.Construction, 
+		b.CoverageBAA, 
+		b.CoverageBPercent, 
+		b.CoverageDwelling, 
+		b.CoverageProperty, 
+/*		b.Coverage, */
+		b.CreditSurcharge, 
+		b.CurbWeight, 
+		b.CurrentModel, 
+		b.DeductibleFire, 
+		b.DeductibleHail, 
+		b.DeductibleHurricane, 
+		b.DeductibleTheft, 
+		b.DeductibleTier, 
+		b.DeductibleWater, 
+		b.DeductibleWind, 
+		b.Deductible, 
+		b.Deviation, 
+		b.Elevation, 
+		b.EngineDisplacement, 
+		b.ExpectedLongevity, 
+		b.FireHydrant, 
+		b.FireStationDistance, 
+		b.Fortified, 
+		b.HUC12, 
+		b.HurricaneGroup, 
+		b.IncidentalBusiness, 
+		b.IncreaseDecreaseProperty, 
+		b.IncreasedBAA, 
+		b.IncreasedBusinessProperty, 
+		b.IncreasedComputer, 
+		b.IncreasedCoverageDwelling, 
+		b.IncreasedLossAssessment, 
+		b.IncreasedOrdinanceLaw, 
+		b.IncreasedRoofing, 
+		b.IncreasedSewerDrain, 
+		b.InlandFloodMinimumPremium, 
+		b.InlandFloodScore, 
+		b.InsuredAge, 
+		b.LatLonConfidence, 
+		b.LatLonSource, 
+/*		b.Latitude, */
+		b.LengthOfResidence, 
+		b.LifeTenant, 
+		b.LimitMedicalPayments, 
+		b.Limit, 
+/*		b.Longitude, */
+		b.LossSettlementBAA, 
+		b.LossSettlementContents, 
+		b.LossSettlementDwelling, 
+		b.MPDAuto, 
+		b.MPDCommAuto, 
+		b.MPDGroup, 
+		b.MPDLife, 
+		b.MPDUmbrella, 
+		b.MultiDwellingSplit, 
+		b.NewChargeableClaim, 
+		b.NumberOfBathrooms, 
+		b.NumberOfCargoVans, 
+		b.NumberOfCylinders, 
+		b.NumberOfFamilies, 
+		b.NumberOfFireplaces, 
+		b.NumberOfMiniVans, 
+		b.NumberOfPickups, 
+		b.NumberOfRooms, 
+		b.NumberOfStories, 
+		b.OrdinanceOrLaw, 
+		b.PayPlan, 
+		b.PaymentMethod, 
+/*		b.PolicyForm, */
+		b.PreviousLatePays, 
+		b.ProtectionClass, 
+		b.RollonDwelling, 
+		b.RollonProperty, 
+		b.Sprinkler, 
+		b.SquareFootage, 
+		b.StormShutter, 
+		b.StormSurgeScore, 
+		b.UnderwritingScore, 
+		b.UnderwritingTierCondo, 
+		b.UnderwritingTierFire, 
+		b.UnderwritingTierHail, 
+		b.UnderwritingTierHurricane, 
+		b.UnderwritingTierLiability, 
+		b.UnderwritingTierMedical, 
+		b.UnderwritingTierTenant, 
+		b.UnderwritingTierTheft, 
+		b.UnderwritingTierWater, 
+		b.UnderwritingTierWind, 
+		b.WindHailExclusion, 
+		b.YearsWithErieSecure, 
+		b.YearsWithErie, 
+		b.ZIPMatchLevel, 
+		b.ARatedBaseRate, 
+		b.ARatedOption, 
+		b.AmountOfInsuranceIM, 
+		b.BlanketIndicator, 
+		b.Breakage, 
+		b.DuplicateRecords, 
+		b.Form, 
+		b.IRPM, 
+		b.RadiusOfOperation, 
+		b.Theft, 
+		b.Vandalism, 
+		b.VaultsSafes, 
+		b.ConstructionYear, 
+		b.InsuranceScoreTier, 
+		b.InsuranceScoreNumber, 
+		b.PoolPresent, 
+		b.Program, 
+		b.TechnicalPrice, 
+		b.ExpectedLossNumber, 
+		b.PercentFire, 
+		b.PercentHail, 
+		b.PercentHurricane, 
+		b.PercentLiability, 
+		b.PercentMedical, 
+		b.PercentTheft, 
+		b.PercentWater, 
+		b.PercentWind, 
+		b.Inforce
+
+	from services_report as a left join home_vars3 as b
+	on a.pol_nr = b.policynumber and put(datepart(a.loss_dt), YYMMDD10.) >= put(b.Coverageeffectivedate, YYMMDD10.) and put(datepart(a.loss_dt), YYMMDD10.) < put(b.Coverageexpirationdate, YYMMDD10.)
+	and compress(a.pstl_cd,' -') = b.riskzip||b.zip4
+	where clm_nr in (select distinct clm_nr from mergedata3b);
+quit;
+
+data mergedata4a mergedata4b;
+	set mergedata3;
+	if inforce = '' then output mergedata4b;
+	else output mergedata4a;
+run;
+
+
+/* Match 4: match on policy/mod/risk zip 5 */
+proc sql;
+	create table mergedata4 as
+	select distinct a.*, b.PolicyModule, 
+		b.MasterCompany, 
+		b.PolicyCompany, 
+		b.PolicyEffectiveYear, 
+		b.Sequence, 
+		b.TypeBureau, 
+/*		b.MajorPeril, */
+		b.CoverageEffectiveDate, 
+		b.CoverageExpirationDate, 
+		b.RiskState, 
+		b.RiskZIP, 
+		b.ZIP4, 
+		b.RiskZone, 
+		b.AgentNumber, 
+		b.InceptionDate, 
+		b.Class, 
+		b.ServiceCode, 
+		b.SystemEntry, 
+		b.AmountOfInsurance, 
+		b.AmountOfInsurance,
+		b.AmountOfInsurance,
+		b.OP, 
+		b.WP, 
+		b.EP, 
+		b.WE, 
+		b.EE, 
+/*		b.WPConcentrationOfRisk, */
+/*		b.EPConcentrationOfRisk, */
+/*		b.WPNCRB, */
+/*		b.EPNCRB, */
+		b.AdvanceQuoteDays, 
+		b.AdvanceQuoteYear, 
+		b.AdvanceQuote, 
+		b.AlarmSystem, 
+		b.BasementFinishAgent, 
+		b.CerpClaims, 
+		b.CommercialOccupancy, 
+		b.ConsentToRate, 
+		b.Construction, 
+		b.CoverageBAA, 
+		b.CoverageBPercent, 
+		b.CoverageDwelling, 
+		b.CoverageProperty, 
+/*		b.Coverage, */
+		b.CreditSurcharge, 
+		b.CurbWeight, 
+		b.CurrentModel, 
+		b.DeductibleFire, 
+		b.DeductibleHail, 
+		b.DeductibleHurricane, 
+		b.DeductibleTheft, 
+		b.DeductibleTier, 
+		b.DeductibleWater, 
+		b.DeductibleWind, 
+		b.Deductible, 
+		b.Deviation, 
+		b.Elevation, 
+		b.EngineDisplacement, 
+		b.ExpectedLongevity, 
+		b.FireHydrant, 
+		b.FireStationDistance, 
+		b.Fortified, 
+		b.HUC12, 
+		b.HurricaneGroup, 
+		b.IncidentalBusiness, 
+		b.IncreaseDecreaseProperty, 
+		b.IncreasedBAA, 
+		b.IncreasedBusinessProperty, 
+		b.IncreasedComputer, 
+		b.IncreasedCoverageDwelling, 
+		b.IncreasedLossAssessment, 
+		b.IncreasedOrdinanceLaw, 
+		b.IncreasedRoofing, 
+		b.IncreasedSewerDrain, 
+		b.InlandFloodMinimumPremium, 
+		b.InlandFloodScore, 
+		b.InsuredAge, 
+		b.LatLonConfidence, 
+		b.LatLonSource, 
+/*		b.Latitude, */
+		b.LengthOfResidence, 
+		b.LifeTenant, 
+		b.LimitMedicalPayments, 
+		b.Limit, 
+/*		b.Longitude, */
+		b.LossSettlementBAA, 
+		b.LossSettlementContents, 
+		b.LossSettlementDwelling, 
+		b.MPDAuto, 
+		b.MPDCommAuto, 
+		b.MPDGroup, 
+		b.MPDLife, 
+		b.MPDUmbrella, 
+		b.MultiDwellingSplit, 
+		b.NewChargeableClaim, 
+		b.NumberOfBathrooms, 
+		b.NumberOfCargoVans, 
+		b.NumberOfCylinders, 
+		b.NumberOfFamilies, 
+		b.NumberOfFireplaces, 
+		b.NumberOfMiniVans, 
+		b.NumberOfPickups, 
+		b.NumberOfRooms, 
+		b.NumberOfStories, 
+		b.OrdinanceOrLaw, 
+		b.PayPlan, 
+		b.PaymentMethod, 
+/*		b.PolicyForm, */
+		b.PreviousLatePays, 
+		b.ProtectionClass, 
+		b.RollonDwelling, 
+		b.RollonProperty, 
+		b.Sprinkler, 
+		b.SquareFootage, 
+		b.StormShutter, 
+		b.StormSurgeScore, 
+		b.UnderwritingScore, 
+		b.UnderwritingTierCondo, 
+		b.UnderwritingTierFire, 
+		b.UnderwritingTierHail, 
+		b.UnderwritingTierHurricane, 
+		b.UnderwritingTierLiability, 
+		b.UnderwritingTierMedical, 
+		b.UnderwritingTierTenant, 
+		b.UnderwritingTierTheft, 
+		b.UnderwritingTierWater, 
+		b.UnderwritingTierWind, 
+		b.WindHailExclusion, 
+		b.YearsWithErieSecure, 
+		b.YearsWithErie, 
+		b.ZIPMatchLevel, 
+		b.ARatedBaseRate, 
+		b.ARatedOption, 
+		b.AmountOfInsuranceIM, 
+		b.BlanketIndicator, 
+		b.Breakage, 
+		b.DuplicateRecords, 
+		b.Form, 
+		b.IRPM, 
+		b.RadiusOfOperation, 
+		b.Theft, 
+		b.Vandalism, 
+		b.VaultsSafes, 
+		b.ConstructionYear, 
+		b.InsuranceScoreTier, 
+		b.InsuranceScoreNumber, 
+		b.PoolPresent, 
+		b.Program, 
+		b.TechnicalPrice, 
+		b.ExpectedLossNumber, 
+		b.PercentFire, 
+		b.PercentHail, 
+		b.PercentHurricane, 
+		b.PercentLiability, 
+		b.PercentMedical, 
+		b.PercentTheft, 
+		b.PercentWater, 
+		b.PercentWind, 
+		b.Inforce
+
+	from services_report as a left join home_vars3 as b
+	on a.pol_nr = b.policynumber and put(datepart(a.loss_dt), YYMMDD10.) >= put(b.Coverageeffectivedate, YYMMDD10.) and put(datepart(a.loss_dt), YYMMDD10.) < put(b.Coverageexpirationdate, YYMMDD10.)
+	and substr(a.pstl_cd,1,5) = b.riskzip
+	where clm_nr in (select distinct clm_nr from mergedata4b);
+quit;
+
+data mergedata5a mergedata5b;
+	set mergedata4;
+	if inforce = '' then output mergedata5b;
+	else output mergedata5a;
+run;
+
+
+/* Match 5: match on policy/mod */
+proc sql;
+	create table mergedata5 as
+	select distinct a.*, b.PolicyModule, 
+		b.MasterCompany, 
+		b.PolicyCompany, 
+		b.PolicyEffectiveYear, 
+		b.Sequence, 
+		b.TypeBureau, 
+/*		b.MajorPeril, */
+		b.CoverageEffectiveDate, 
+		b.CoverageExpirationDate, 
+		b.RiskState, 
+		b.RiskZIP, 
+		b.ZIP4, 
+		b.RiskZone, 
+		b.AgentNumber, 
+		b.InceptionDate, 
+		b.Class, 
+		b.ServiceCode, 
+		b.SystemEntry, 
+		b.AmountOfInsurance, 
+		b.AmountOfInsurance,
+		b.AmountOfInsurance,
+		b.OP, 
+		b.WP, 
+		b.EP, 
+		b.WE, 
+		b.EE, 
+/*		b.WPConcentrationOfRisk, */
+/*		b.EPConcentrationOfRisk, */
+/*		b.WPNCRB, */
+/*		b.EPNCRB, */
+		b.AdvanceQuoteDays, 
+		b.AdvanceQuoteYear, 
+		b.AdvanceQuote, 
+		b.AlarmSystem, 
+		b.BasementFinishAgent, 
+		b.CerpClaims, 
+		b.CommercialOccupancy, 
+		b.ConsentToRate, 
+		b.Construction, 
+		b.CoverageBAA, 
+		b.CoverageBPercent, 
+		b.CoverageDwelling, 
+		b.CoverageProperty, 
+/*		b.Coverage, */
+		b.CreditSurcharge, 
+		b.CurbWeight, 
+		b.CurrentModel, 
+		b.DeductibleFire, 
+		b.DeductibleHail, 
+		b.DeductibleHurricane, 
+		b.DeductibleTheft, 
+		b.DeductibleTier, 
+		b.DeductibleWater, 
+		b.DeductibleWind, 
+		b.Deductible, 
+		b.Deviation, 
+		b.Elevation, 
+		b.EngineDisplacement, 
+		b.ExpectedLongevity, 
+		b.FireHydrant, 
+		b.FireStationDistance, 
+		b.Fortified, 
+		b.HUC12, 
+		b.HurricaneGroup, 
+		b.IncidentalBusiness, 
+		b.IncreaseDecreaseProperty, 
+		b.IncreasedBAA, 
+		b.IncreasedBusinessProperty, 
+		b.IncreasedComputer, 
+		b.IncreasedCoverageDwelling, 
+		b.IncreasedLossAssessment, 
+		b.IncreasedOrdinanceLaw, 
+		b.IncreasedRoofing, 
+		b.IncreasedSewerDrain, 
+		b.InlandFloodMinimumPremium, 
+		b.InlandFloodScore, 
+		b.InsuredAge, 
+		b.LatLonConfidence, 
+		b.LatLonSource, 
+/*		b.Latitude, */
+		b.LengthOfResidence, 
+		b.LifeTenant, 
+		b.LimitMedicalPayments, 
+		b.Limit, 
+/*		b.Longitude, */
+		b.LossSettlementBAA, 
+		b.LossSettlementContents, 
+		b.LossSettlementDwelling, 
+		b.MPDAuto, 
+		b.MPDCommAuto, 
+		b.MPDGroup, 
+		b.MPDLife, 
+		b.MPDUmbrella, 
+		b.MultiDwellingSplit, 
+		b.NewChargeableClaim, 
+		b.NumberOfBathrooms, 
+		b.NumberOfCargoVans, 
+		b.NumberOfCylinders, 
+		b.NumberOfFamilies, 
+		b.NumberOfFireplaces, 
+		b.NumberOfMiniVans, 
+		b.NumberOfPickups, 
+		b.NumberOfRooms, 
+		b.NumberOfStories, 
+		b.OrdinanceOrLaw, 
+		b.PayPlan, 
+		b.PaymentMethod, 
+/*		b.PolicyForm, */
+		b.PreviousLatePays, 
+		b.ProtectionClass, 
+		b.RollonDwelling, 
+		b.RollonProperty, 
+		b.Sprinkler, 
+		b.SquareFootage, 
+		b.StormShutter, 
+		b.StormSurgeScore, 
+		b.UnderwritingScore, 
+		b.UnderwritingTierCondo, 
+		b.UnderwritingTierFire, 
+		b.UnderwritingTierHail, 
+		b.UnderwritingTierHurricane, 
+		b.UnderwritingTierLiability, 
+		b.UnderwritingTierMedical, 
+		b.UnderwritingTierTenant, 
+		b.UnderwritingTierTheft, 
+		b.UnderwritingTierWater, 
+		b.UnderwritingTierWind, 
+		b.WindHailExclusion, 
+		b.YearsWithErieSecure, 
+		b.YearsWithErie, 
+		b.ZIPMatchLevel, 
+		b.ARatedBaseRate, 
+		b.ARatedOption, 
+		b.AmountOfInsuranceIM, 
+		b.BlanketIndicator, 
+		b.Breakage, 
+		b.DuplicateRecords, 
+		b.Form, 
+		b.IRPM, 
+		b.RadiusOfOperation, 
+		b.Theft, 
+		b.Vandalism, 
+		b.VaultsSafes, 
+		b.ConstructionYear, 
+		b.InsuranceScoreTier, 
+		b.InsuranceScoreNumber, 
+		b.PoolPresent, 
+		b.Program, 
+		b.TechnicalPrice, 
+		b.ExpectedLossNumber, 
+		b.PercentFire, 
+		b.PercentHail, 
+		b.PercentHurricane, 
+		b.PercentLiability, 
+		b.PercentMedical, 
+		b.PercentTheft, 
+		b.PercentWater, 
+		b.PercentWind, 
+		b.Inforce
+
+	from services_report as a left join home_vars3 as b
+	on a.pol_nr = b.policynumber and put(datepart(a.loss_dt), YYMMDD10.) >= put(b.Coverageeffectivedate, YYMMDD10.) and put(datepart(a.loss_dt), YYMMDD10.) < put(b.Coverageexpirationdate, YYMMDD10.)
+	where clm_nr in (select distinct clm_nr from mergedata5b);
+quit;
+
+data mergedata6a mergedata6b;
+	set mergedata5;
+	if inforce = '' then output mergedata6b;
+	else output mergedata6a;
+run;
+
+/* Match 5: match on policy/mod/policy effective dates/risk zip5 */
+proc sql;
+	create table mergedata6 as
+	select distinct a.*, b.PolicyModule, 
+		b.MasterCompany, 
+		b.PolicyCompany, 
+		b.PolicyEffectiveYear, 
+		b.Sequence, 
+		b.TypeBureau, 
+/*		b.MajorPeril, */
+		b.CoverageEffectiveDate, 
+		b.CoverageExpirationDate, 
+		b.RiskState, 
+		b.RiskZIP, 
+		b.ZIP4, 
+		b.RiskZone, 
+		b.AgentNumber, 
+		b.InceptionDate, 
+		b.Class, 
+		b.ServiceCode, 
+		b.SystemEntry, 
+		b.AmountOfInsurance, 
+		b.AmountOfInsurance,
+		b.AmountOfInsurance,
+		b.OP, 
+		b.WP, 
+		b.EP, 
+		b.WE, 
+		b.EE, 
+/*		b.WPConcentrationOfRisk, */
+/*		b.EPConcentrationOfRisk, */
+/*		b.WPNCRB, */
+/*		b.EPNCRB, */
+		b.AdvanceQuoteDays, 
+		b.AdvanceQuoteYear, 
+		b.AdvanceQuote, 
+		b.AlarmSystem, 
+		b.BasementFinishAgent, 
+		b.CerpClaims, 
+		b.CommercialOccupancy, 
+		b.ConsentToRate, 
+		b.Construction, 
+		b.CoverageBAA, 
+		b.CoverageBPercent, 
+		b.CoverageDwelling, 
+		b.CoverageProperty, 
+/*		b.Coverage, */
+		b.CreditSurcharge, 
+		b.CurbWeight, 
+		b.CurrentModel, 
+		b.DeductibleFire, 
+		b.DeductibleHail, 
+		b.DeductibleHurricane, 
+		b.DeductibleTheft, 
+		b.DeductibleTier, 
+		b.DeductibleWater, 
+		b.DeductibleWind, 
+		b.Deductible, 
+		b.Deviation, 
+		b.Elevation, 
+		b.EngineDisplacement, 
+		b.ExpectedLongevity, 
+		b.FireHydrant, 
+		b.FireStationDistance, 
+		b.Fortified, 
+		b.HUC12, 
+		b.HurricaneGroup, 
+		b.IncidentalBusiness, 
+		b.IncreaseDecreaseProperty, 
+		b.IncreasedBAA, 
+		b.IncreasedBusinessProperty, 
+		b.IncreasedComputer, 
+		b.IncreasedCoverageDwelling, 
+		b.IncreasedLossAssessment, 
+		b.IncreasedOrdinanceLaw, 
+		b.IncreasedRoofing, 
+		b.IncreasedSewerDrain, 
+		b.InlandFloodMinimumPremium, 
+		b.InlandFloodScore, 
+		b.InsuredAge, 
+		b.LatLonConfidence, 
+		b.LatLonSource, 
+/*		b.Latitude, */
+		b.LengthOfResidence, 
+		b.LifeTenant, 
+		b.LimitMedicalPayments, 
+		b.Limit, 
+/*		b.Longitude, */
+		b.LossSettlementBAA, 
+		b.LossSettlementContents, 
+		b.LossSettlementDwelling, 
+		b.MPDAuto, 
+		b.MPDCommAuto, 
+		b.MPDGroup, 
+		b.MPDLife, 
+		b.MPDUmbrella, 
+		b.MultiDwellingSplit, 
+		b.NewChargeableClaim, 
+		b.NumberOfBathrooms, 
+		b.NumberOfCargoVans, 
+		b.NumberOfCylinders, 
+		b.NumberOfFamilies, 
+		b.NumberOfFireplaces, 
+		b.NumberOfMiniVans, 
+		b.NumberOfPickups, 
+		b.NumberOfRooms, 
+		b.NumberOfStories, 
+		b.OrdinanceOrLaw, 
+		b.PayPlan, 
+		b.PaymentMethod, 
+/*		b.PolicyForm, */
+		b.PreviousLatePays, 
+		b.ProtectionClass, 
+		b.RollonDwelling, 
+		b.RollonProperty, 
+		b.Sprinkler, 
+		b.SquareFootage, 
+		b.StormShutter, 
+		b.StormSurgeScore, 
+		b.UnderwritingScore, 
+		b.UnderwritingTierCondo, 
+		b.UnderwritingTierFire, 
+		b.UnderwritingTierHail, 
+		b.UnderwritingTierHurricane, 
+		b.UnderwritingTierLiability, 
+		b.UnderwritingTierMedical, 
+		b.UnderwritingTierTenant, 
+		b.UnderwritingTierTheft, 
+		b.UnderwritingTierWater, 
+		b.UnderwritingTierWind, 
+		b.WindHailExclusion, 
+		b.YearsWithErieSecure, 
+		b.YearsWithErie, 
+		b.ZIPMatchLevel, 
+		b.ARatedBaseRate, 
+		b.ARatedOption, 
+		b.AmountOfInsuranceIM, 
+		b.BlanketIndicator, 
+		b.Breakage, 
+		b.DuplicateRecords, 
+		b.Form, 
+		b.IRPM, 
+		b.RadiusOfOperation, 
+		b.Theft, 
+		b.Vandalism, 
+		b.VaultsSafes, 
+		b.ConstructionYear, 
+		b.InsuranceScoreTier, 
+		b.InsuranceScoreNumber, 
+		b.PoolPresent, 
+		b.Program, 
+		b.TechnicalPrice, 
+		b.ExpectedLossNumber, 
+		b.PercentFire, 
+		b.PercentHail, 
+		b.PercentHurricane, 
+		b.PercentLiability, 
+		b.PercentMedical, 
+		b.PercentTheft, 
+		b.PercentWater, 
+		b.PercentWind, 
+		b.Inforce
+
+	from services_report as a left join home_vars3 as b
+	on a.pol_nr = b.policynumber and put(datepart(a.loss_dt), YYMMDD10.) >= put(b.policyeffectivedate, YYMMDD10.) and put(datepart(a.loss_dt), YYMMDD10.) < put(b.policyexpirationdate, YYMMDD10.)
+	and substr(a.pstl_cd,1,5) = b.riskzip
+	where clm_nr in (select distinct clm_nr from mergedata6b);
+quit;
+
+/* still about 101k in mergedata7b, but these claims are missing a lot of information, like loss date (all but 3600), so I probably am not benefitting from
+   including them anyway */
+data mergedata7a mergedata7b;
+	set mergedata6;
+	if inforce = '' then output mergedata7b;
+	else output mergedata7a;
+run;
+
+/* Merge all a datasets together - 404k obs */
+data mergedata8;
+	set mergedata2a mergedata3a mergedata4a mergedata5a mergedata6a mergedata7a;
+run;
+
+/* Remove duplicates */
+proc sort data=mergedata8;
+	by clm_nr descending service_days;
+run;
+
+/* 387k obs (just over 4% of the data) */
+/*data mergedata9;*/
+/*	set mergedata8;*/
+/*	by clm_nr descending service_days;*/
+/*	if first.clm_nr;*/
+/*run;*/
+
+
+
+data mergedata8;
+	set mergedata8;
+	/* create array n, of whatever length is required (*), for all numeric variables */
+	array n[*] _numeric_;
+	/* create array c, of whatever length is required (*), for all character variables */
+	array c[*] _character_;
+
+	/* loop through all array elements and replace with -99 if they are missing */
+	do i=1 to hbound(n);
+		if n[i] = . then n[i]  = -99;
+	end;
+	drop i; 
+
+	/* loop through all array elements and replace with -99 if they are missing */
+	do j=1 to hbound(c);
+		if c[j] = '' then c[j]  = "#";
+	end;
+	drop j;
+
+run; 
+
+
+data services2_report;
+	set mergedata8;
+run;
+
+/* 5/23/2022 - we have some duplicates due to multiple AOIs */
+proc sort data=services2_report;
+	by clm_nr svc_req_nr adjustername asgn_dt descending AmountOfInsurance;
+run;
+
+data services2_report;
+	set services2_report;
+	by clm_nr svc_req_nr adjustername asgn_dt descending AmountOfInsurance;
+	if first.asgn_dt;
+run;
+
+FILENAME REFFILE '/ere/local/shared/actuarial/Share/Claims/WPC/hrisaddr.xlsx';
+/* import file */
+PROC IMPORT DATAFILE=REFFILE
+	DBMS=XLSX replace
+	OUT=addrs;
+RUN;
+
+	/* drop middle initial */
+	data addrs;
+		set addrs;
+	/*	if last position is . then trim by 2 */
+		if length(scan(name, -1, '.')) = 1
+			then name2 = compress(substr(name,1,length(name)-2));
+	/* if last position is capital letter, trim by 2 */
+		else if substr(name,length(name)-1,1) = substr(upcase(name),length(name)-1,1)
+			then name2 = compress(substr(name,1,length(name)-1));
+	/*otherwise keep as is */
+		else name2 = compress(name);
+	run;
+
+		/* only keep fields needed */
+		data src.addrs;
+			set addrs;
+			keep name2 postal;
+		run;
+
+PROC SQL;
+     CREATE TABLE temp1 As
+           Select distinct A.*
+                , substr(B.postal,1,5) as adjuster_postal
+           From services2_report as A left join src.addrs as B
+           on compress(a.adjustername) = compress(B.name2)
+           ;
+QUIT;
+
+proc sql;
+	create table check1 as
+	select distinct adjustername, adjpositiontitle, count(*)
+	from temp1
+	where adjuster_postal = ''
+	group by adjustername, adjpositiontitle;
+run;
+
+proc freq data=check1;
+	table adjpositiontitle;
+run;
+
+proc sql;
+	create table check2 as
+	select distinct year(asgn_dt) as asgn_year, adjpositiontitle, count(*)
+	from temp1
+	where adjuster_postal = ''
+	group by asgn_year, adjpositiontitle;
+quit;
+
+data check3;
+	set temp1;
+	if adjuster_postal = '' then missing = 1;
+	else missing = 0;
+run;
+
+proc sql;
+	create table check4 as
+	select distinct adjpositiontitle, year(asgn_dt) as asgn_year,  sum(missing)/count(*) as pct_missing
+	from check3
+	group by adjpositiontitle, asgn_year;
+quit;
+
+/* Temp2 are positions that travel (list from MaryBeth) */
+data temp2 temp2a temp3 temp4;
+	set temp1;
+	if adjpositiontitle in('Inside Property Adjuster') then adjpositiontitle = 'Inside Property Adjuster';
+	else if adjpositiontitle in('Catastrophe Property Adjuster','Cat Property Damage','CAT Property Damage') then adjpositiontitle = 'Catastrophe Property Adjuster';
+	else if adjpositiontitle in('Property Repair Program Adjuster') then adjpositiontitle = 'Property Repair Program Adjuster';
+	else if adjpositiontitle in('Sr Property Claims Specialist','Sr Property Specialist') then adjpositiontitle = 'Sr Property Specialist';
+	else if adjpositiontitle in('Property Adjuster II','Property Adjuster I','Property Adjuster') then adjpositiontitle = 'Property Adjuster';
+	else if adjpositiontitle in('Property Claims Specialist','Property Specialist') then adjpositiontitle = 'Property Specialist';
+	if adjpositiontitle in ('Sr Property Specialist', 'Property Adjuster', 'Property Specialist') then output temp2;
+	else if adjpositiontitle in ('Catastrophe Property Adjuster') then output temp2a;
+	else if adjpositiontitle in ('Inside Property Adjuster', 'Property Repair Program Adjuster') then output temp3;
+	else output temp4;
+run;
+
+/*SIGN ONTO SERVER*/
+/*INITIALIZE ACCESS TO CCDS*/
+LIBNAME CCDS ORACLE PATH=CDEP1 SCHEMA=BRFADM Authdomain=Oracle_Auth_CCDS;
+
+proc sql;
+create table temp5 as
+select distinct
+  regn.regn_nm as Office
+, regn_zn_cd as ZIP_Code
+from ccds.regn
+left join ccds.regn_zn on regn.regn_ntrl_id = regn_zn.regn_ntrl_id AND regn_zn.regn_zn_typ_dc = 'ZipCode'
+        and regn_zn.crnt_rec_in = 'Y' and regn_zn.rec_ret_in = 'N'
+where regn.crnt_rec_in = 'Y' and regn.rec_ret_in = 'N'
+;quit;
+
+data temp5;
+	set temp5;
+	office1 = scan(Office,1);
+	office2 = scan(Office,2);
+	if office1 in ('New', 'Fort', 'Silver', 'West') then office1 = compress(office1||office2);
+	where zip_code ne '';
+	if office1 = 'Virginia' then office1 = 'Waynesboro';
+	if office1 = 'Knoxville' then office1 = 'Tennessee';
+	if office1 = 'Peoria' then office1 = 'Illinois';
+	if office1 = 'Warrendale' then office1 = 'Pittsburgh';
+	if office1 = 'Waukesha' then office1 = 'Wisconsin';
+	if office1 = 'NewYork' then office1 = 'Rochester';
+	if office1 = 'Indiana' then office1 = 'Indianapolis';
+	if office1 = 'WestVirginia' then office1 = 'Parkersburg';
+	if office1 = 'WaynesboroWV' then office1 = 'Waynesboro';
+	if office1 = 'ParkersburgOH' then office1 = 'Parkersburg';
+	if office1 = 'DC' then office1 = 'SilverSpring';
+run;
+
+/* Some instances where same offices cover the same zip code... Will keep duplicates and select shorter distance */
+proc sql;
+	create table temp2a_merge as
+	select distinct a.*, b.Office1 as clm_office
+	from temp2a as a left join temp5 as b
+	on substr(a.pstl_cd,1,5) = b.zip_code
+	having clm_Office not in ('ISS', 'HES', 'UM', 'PA', 'OH', 'TN', 'NC', 'MD', 'NY', 'Branch', 'Silver', 'WV');
+quit;
+
+proc sql;
+	create table temp2a_merge as
+	select distinct a.*, b.ZIP as office_zip
+	from temp2a_merge as a left join src.office_zip as b
+	on a.clm_office = compress(b.name);
+quit;
+
+/* Set adjuster zip equal to the office zip */
+data temp2a_merge;
+	set temp2a_merge;
+	if (cats_nm ne 'Blank' and office_zip ne .) then adjuster_postal = office_zip;
+run;
+
+data temp2b temp2c;
+	set temp2 temp2a_merge;
+	if adjuster_postal = '' then output temp2c;
+	
+	else output temp2b;
+run;
+
+/* double check positions in here (will delete these observations) */
+proc freq data=temp4;
+	table adjpositiontitle;
+run;
+
+     PROC SQL;
+           CREATE TABLE temp2b As
+                Select A.*
+                     , B.drive_distance 
+                     , round(b.drive_time,5) as drivetime
+                     , substr(A.pstl_cd,1,5) as zip5
+                From temp2b as A left join src.drivetimes as B
+                on compress(A.adjuster_postal) = compress(B.adj_zip)
+                and substr(A.pstl_cd,1,5) = B.zip5_x;
+     quit;
+	/* Using same default as MDA - 26 records have missing distance despite having 2 zips... too few to investigate so will put in defaults  */
+	data temp2b;
+		set temp2b;
+		if drivetime = 0 then drivetime = 5;
+		if compress(adjuster_postal) = compress(zip5) then drivetime = 5;
+		if drive_distance = 0 then drive_distance = 2;
+		if compress(adjuster_postal) = compress(zip5) then drive_distance = 2;
+	run;
+
+	proc sort data=temp2b;
+		by clm_nr svc_req_nr adjustername asgn_dt expsr_cls_dt drivetime;
+	run;
+
+	data temp2b;
+		set temp2b;
+		by clm_nr svc_req_nr adjustername asgn_dt expsr_cls_dt drivetime;
+		if first.asgn_dt;
+	run;
+
+
+	proc sort data=temp2c;
+		by clm_nr svc_req_nr adjustername asgn_dt expsr_cls_dt;
+	run;
+
+	data temp2c;
+		set temp2c;
+		by clm_nr svc_req_nr adjustername asgn_dt expsr_cls_dt;
+		if first.asgn_dt;
+	run;
+
+	/* Find average drive time/distance per inspection location to use as default values */
+	proc sql;
+		create table avg_drive as
+		select distinct zip5, mean(drive_distance) as drive_distance, round(mean(drivetime),5) as drivetime
+		from temp2b
+		where cats_nm ne 'Blank' and drive_distance ne .
+		group by zip5;
+	quit;
+
+	/* Merge on values for records with missing times (that should have times); 2000 out of 118k are still missing */
+	PROC SQL;
+           CREATE TABLE temp2c As
+                Select A.*
+                     , B.drive_distance 
+                     , B.drivetime
+                From temp2c as A left join avg_drive as B
+                on substr(A.pstl_cd,1,5) = B.zip5;
+     quit;
+
+	data temp2d;
+	 	set temp2b temp2c;
+		if drive_distance = . then drive_distance = 25;
+		if drivetime = . then drivetime = 40;
+	run;
+
+
+	data services3_report;
+		set temp2d temp3;
+	run;
+
+data services3_report;
+	set services3_report;
+	/* create array n, of whatever length is required (*), for all numeric variables */
+	array n[*] _numeric_;
+	/* create array c, of whatever length is required (*), for all character variables */
+	array c[*] _character_;
+
+	/* loop through all array elements and replace with -99 if they are missing */
+	do i=1 to hbound(n);
+		if n[i] = . then n[i]  = -99;
+	end;
+	drop i; 
+
+	/* loop through all array elements and replace with -99 if they are missing */
+	do j=1 to hbound(c);
+		if c[j] = '' then c[j]  = "#";
+	end;
+	drop j;
+
+run; 
+
+
+data services3_report;
+	set services3_report;
+	if cats_nm ne 'Blank' then cats_nm = 'CAT';
+run;
+
+proc sql;
+	create table services3_report as
+	select distinct *
+	from services3_report;
+quit;
+
+options compress=yes;
+
+PROC SQL;
+    CONNECT USING CCDS;
+
+    CREATE TABLE Text_Fields AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT
+    	CLM.CLM_NTRL_ID    AS ClaimID,
+        CLM.CLM_NR         AS ClaimNumber,
+        CLM.RPT_DT as ReportedDate,
+		CLM.CLM_DC		   AS ClaimDescription,
+		CLM.CLM_SUMY_DC    AS ClaimSummary,
+		INCID.INCID_DC
+	FROM BRFADM.CLM CLM
+	LEFT JOIN BRFADM.INCID ON CLM.CLM_NTRL_ID = INCID.CLM_NTRL_ID
+		AND INCID.REC_RET_IN = 'N' 
+		AND INCID.CRNT_REC_IN = 'Y'
+
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+	WHERE
+
+		CLM.CRNT_REC_IN = 'Y'
+        	AND
+        CLM.REC_RET_IN = 'N'
+			AND
+		CLM.LOB_DC in ('HomeownersLine')
+/*			AND*/
+/*		CLM.LOSS_TYP_DC in ('Property')*/
+			AND
+		CLM.CLM_STATE_DC = 'Closed'
+		and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+    			);
+
+    	DISCONNECT FROM CCDS;
+QUIT;
+
+PROC SQL;
+    CONNECT USING CCDS;
+
+    CREATE TABLE Notes AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT
+    	CLM.CLM_NTRL_ID    AS ClaimID,
+        CLM.CLM_NR         AS ClaimNumber,
+        CLM.RPT_DT as ReportedDate,
+		NOTE.NOTE_DC,
+		NOTE.LST_UPD_DT as note_lastupdate_date
+
+    FROM BRFADM.CLM CLM
+    LEFT JOIN BRFADM.NOTE NOTE ON CLM.CLM_NTRL_ID = NOTE.CLM_NTRL_ID
+        AND NOTE.REC_RET_IN = 'N' 
+		AND NOTE.CRNT_REC_IN = 'Y'
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+    WHERE
+    	/* Exclude transactions that should be ignored */
+		CLM.CRNT_REC_IN = 'Y'
+        	AND
+        CLM.REC_RET_IN = 'N'
+			AND
+		CLM.LOB_DC in ('HomeownersLine')
+/*			AND*/
+/*		CLM.LOSS_TYP_DC in ('Property')*/
+			AND
+		CLM.CLM_STATE_DC = 'Closed'
+		and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+
+    			);
+
+    	DISCONNECT FROM CCDS;
+QUIT;
+
+proc sql;
+	create table text_fields as
+	select distinct * from text_fields;
+quit;
+
+proc sql;
+	create table Notes as
+	select distinct * from Notes;
+quit;
+
+proc sql;
+	create table count_notes as
+	select distinct claimid, claimnumber, count(note_dc) as note_count
+	from notes
+	group by claimid, claimnumber;
+quit;
+
+proc means data=count_notes;
+	var note_count;
+run;
+
+proc sort data=text_fields;
+	by CLAIMNUMBER claimid;
+run;
+
+proc sort data=notes;
+	by CLAIMNUMBER claimid;
+run;
+
+
+data incid_dc (keep=claimnumber claimid long_incid_dc);
+  do until (last.CLAIMID);
+    set Text_Fields;
+    by CLAIMNUMBER claimid;
+    length long_incid_dc $5000;
+    long_incid_dc = catx(' ', long_incid_dc, incid_DC);
+  end;
+run;
+
+/* 375,697 (no added records) */
+proc sql;
+	create table services4_report as
+	select distinct a.*, b.ClaimDescription, b.ClaimSummary, c.long_incid_dc as incid_dc
+	from services3_report as a left join text_fields as b
+	on a.clm_nr = b.claimnumber
+	left join incid_dc as c
+	on a.clm_nr = c.claimnumber;
+quit;
+
+/*data services4_report;*/
+/*	set services4_report;*/
+/*	if note_count = . then note_count = 0;*/
+/*run;*/
+
+/*proc corr data=services4_report ;*/
+/*	var claimcost note_count;*/
+/*run;*/
+
+
+data services4_report;
+	set services4_report;
+	if cats_nm ne 'Blank' then cats_nm = 'CAT';
+run;
+
+proc sql;
+	create table services4_report as
+	select distinct *
+	from services4_report;
+quit;
+
+
+
+/* Alt y option - count activities from service history screen */
+data services4_report;
+	set services4_report;
+	sum_chg_dc = sum(chg_dc_AssignmentCancelled, 
+	chg_dc_AssignmentsenttoSymbility, 
+	chg_dc_Createdservices, 
+	chg_dc_Requestedservicefromvendo, 
+	chg_dc_EstimateApproved, 
+	chg_dc_EstimateCompleted, 
+	chg_dc_ServiceRequestInProgress, 
+	chg_dc_ServiceRequestWorkComplet, 
+	chg_dc_AssignmentCompleted, 
+	chg_dc_InspectionPerformed, 
+	chg_dc_InspectionScheduled, 
+	chg_dc_InsuredContacted, 
+	chg_dc_ServiceRequestCanceled, 
+	chg_dc_SupplementApproved, 
+	chg_dc_AssignmentReopened, 
+	chg_dc_Vendorcompletedwork, 
+	chg_dc_Addedinvoice, 
+	chg_dc_EstimateDeleted, 
+	chg_dc_EstimateCanceled, 
+	chg_dc_Approvedinvoice, 
+	chg_dc_PaidInvoice, 
+	chg_dc_SupplementCanceled, 
+	chg_dc_EstimateReinstated, 
+	chg_dc_SupplementDeleted, 
+	chg_dc_SupplementReinstated, 
+	chg_dc_UnpaidInvoice, 
+	chg_dc_JobScheduled, 
+	chg_dc_Invoice0markedasunpaid, 
+	chg_dc_JobCompleted, 
+	chg_dc_JobStarted);
+	ext_svc_sum = sum(service_EnservioContentsValuatio, 
+	service_TempHousing, 
+	service_LadderAssist, 
+	service_ContractorConnectionAdju, 
+	service_EnservioOnsiteInventorya, 
+	service_ContractorConnectionMana, 
+	service_IADaily, 
+	service_IACAT, 
+	service_HSB, 
+	service_PeerReview, 
+	service_HVACi, 
+	service_Evaluation, 
+	service_ESHSelectEquipmentBreakd, 
+	service_Other, 
+	service_HVACiDesktopReview, 
+	service_HVACiOnSite, 
+	service_WaterMitigation, 
+	service_HVACiESHSelectEndorsemen);
+
+	/* Switch -99 to -1 for SHAP */
+	if currentmodel = -99 then currentmodel = -1;
+	if constructionyear >2022 then constructionyear = 1600;
+	if amountofinsurance = -99 then amountofinsurance = -1;
+run;
+
+data services4_report_dr (drop=incid_dc claimdescription claimsummary);
+	set services4_report;
+run;
+
+options compress=yes;
+
+/* Create Count Metric */
+
+data sample_adj;
+	set services4_report;
+	year = year(asgn_dt);
+	open_month = month(asgn_dt);
+	upload_month = month(EVNT_DT);
+	close_month = month(expsr_cls_dt);
+
+
+	if open_month = 1 and upload_month >=1 then assign1 = 1; else assign1 = 0;
+	if open_month <=2 and upload_month >=2 then assign2 = 1; else assign2 = 0;
+	if open_month <=3 and upload_month >=3 then assign3 = 1; else assign3 = 0;
+	if open_month <=4 and upload_month >=4 then assign4 = 1; else assign4 = 0;
+	if open_month <=5 and upload_month >=5 then assign5 = 1; else assign5 = 0;
+	if open_month <=6 and upload_month >=6 then assign6 = 1; else assign6 = 0;
+	if open_month <=7 and upload_month >=7 then assign7 = 1; else assign7 = 0;
+	if open_month <=8 and upload_month >=8 then assign8 = 1; else assign8 = 0;
+	if open_month <=9 and upload_month >=9 then assign9 = 1; else assign9 = 0;
+	if open_month <=10 and upload_month >=10 then assign10 = 1; else assign10 = 0;
+	if open_month <=11 and upload_month >=11 then assign11 = 1; else assign11 = 0;
+	if open_month <=12 and upload_month >=12 then assign12 = 1; else assign12 = 0;
+
+	if upload_month = 1 and close_month >=1 then open1 = 1; else open1 = 0;
+	if upload_month <=2 and close_month >=2 then open2 = 1; else open2 = 0;
+	if upload_month <=3 and close_month >=3 then open3 = 1; else open3 = 0;
+	if upload_month <=4 and close_month >=4 then open4 = 1; else open4 = 0;
+	if upload_month <=5 and close_month >=5 then open5 = 1; else open5 = 0;
+	if upload_month <=6 and close_month >=6 then open6 = 1; else open6 = 0;
+	if upload_month <=7 and close_month >=7 then open7 = 1; else open7 = 0;
+	if upload_month <=8 and close_month >=8 then open8 = 1; else open8 = 0;
+	if upload_month <=9 and close_month >=9 then open9 = 1; else open9 = 0;
+	if upload_month <=10 and close_month >=10 then open10 = 1; else open10 = 0;
+	if upload_month <=11 and close_month >=11 then open11 = 1; else open11 = 0;
+	if upload_month <=12 and close_month >=12 then open12 = 1; else open12 = 0;
+
+
+run;
+
+
+proc sql;
+	create table sample_adj1 as
+	select distinct adjustername, adjpositiontitle, year, close_month, count(*) as close_count
+	from sample_adj
+	group by adjustername, adjpositiontitle, year, close_month;
+quit;
+
+proc sql;
+	create table sample_adj2 as
+	select distinct adjustername, adjpositiontitle, year, sum(assign1) as assign1, sum(assign2) as assign2, sum(assign3) as assign3,
+	sum(assign4) as assign4, sum(assign5) as assign5, sum(assign6) as assign6, sum(assign7) as assign7, 
+	sum(assign8) as assign8, sum(assign9) as assign9, sum(assign10) as assign10, sum(assign11) as assign11, 
+	sum(assign12) as assign12
+	from sample_adj
+	group by adjustername, adjpositiontitle, year;
+quit;
+
+
+proc sql;
+	create table sample_adj3 as
+	select distinct adjustername, adjpositiontitle, year, sum(open1) as open1, sum(open2) as open2, sum(open3) as open3,
+	sum(open4) as open4, sum(open5) as open5, sum(open6) as open6, sum(open7) as open7, 
+	sum(open8) as open8, sum(open9) as open9, sum(open10) as open10, sum(open11) as open11, 
+	sum(open12) as open12
+	from sample_adj
+	group by adjustername, adjpositiontitle, year;
+quit;
+
+proc transpose data=sample_adj2 out=sample_adj2a;
+	by adjustername adjpositiontitle year;
+	var assign1 assign2 assign3 assign4 assign5 assign6 assign7 assign8 assign9 assign10
+	assign11 assign12;
+run;
+
+proc transpose data=sample_adj3 out=sample_adj3a;
+	by adjustername adjpositiontitle year;
+	var open1 open2 open3 open4 open5 open6 open7 open8 open9 open10
+	open11 open12;
+run;
+
+data sample_adj2a;
+	set sample_adj2a;
+	rename col1 = assign_count;
+	format month 3.;
+	month = substr(_name_,7,2);
+run;
+
+data sample_adj3a;
+	set sample_adj3a;
+	rename col1 = open_count;
+	format month 3.;
+	month = substr(_name_,5,2);
+run;
+
+
+proc sql;
+	create table adjusters as
+	select distinct adjustername, adjpositiontitle
+	from sample_adj;
+quit;
+
+data month;
+	input month;
+	datalines;
+	1
+	2
+	3
+	4
+	5
+	6
+	7
+	8
+	9
+	10
+	11
+	12
+	;
+run;
+
+data year;
+	input year;
+	datalines;
+2017
+2018
+2019
+2020
+2021
+2022
+2023
+	;
+run;
+
+proc sql;
+	create table adjusters as
+	select a.*, b.*, c.*
+	from adjusters as a left join month as b
+	on b.month ne .
+	left join year as c
+	on c.year ne .;
+quit;
+
+
+proc sql;
+	create table sample_adj4 as
+	select distinct a.*, b.assign_count, c.open_count, d.close_count
+	from adjusters as a left join sample_adj2a as b
+	on a.adjustername = b.adjustername and a.adjpositiontitle = b.adjpositiontitle and a.month = b.month and a.year = b.year
+	left join sample_adj3a as c
+	on a.adjustername = c.adjustername and a.adjpositiontitle = c.adjpositiontitle and a.month = c.month and a.year = c.year
+	left join sample_adj1 as d on a.adjustername = d.adjustername and a.adjpositiontitle = d.adjpositiontitle and a.month = d.close_month
+	and a.year = d.year;
+quit;
+
+data sample_pull;
+	set sample_adj4;
+	where close_count ne . and year = 2020 and month = 7;
+run;
+
+proc sql;
+	create table sample_adj5 as
+	select distinct a.*, b.assign_count, b.open_count, b.close_count
+	from services4_report as a left join sample_adj4 as b
+	on a.adjustername = b.adjustername and a.adjpositiontitle = b.adjpositiontitle and month(a.asgn_dt) = b.month and year(a.asgn_dt) = b.year;
+quit;
+
+data services5_report;
+	set sample_adj5;
+run;
+
+
+
+/* Additional Variables to Consider - based on 6/2/22 meeting with Claims folks */
+
+data services5_report;
+	set services5_report;
+	/* Check how long the lag is between when a claim occurs and when it is assigned -- if there is a long lag, this might be a partial loss
+	   that was the result of 'neighboritis' */
+	if cat_nm ne 'Blank' and (losscaus_hail = 1 or losscaus_wind = 1) then lag_time = intck('WEEKDAY', loss_dt, asgn_dt); else lag_time = 0;
+run;
+
+/* Alt y option - count activities from service history screen */
+data services5_report;
+	set services5_report;
+	sum_chg_dc = sum(chg_dc_AssignmentCancelled, 
+	chg_dc_AssignmentsenttoSymbility, 
+	chg_dc_Createdservices, 
+	chg_dc_Requestedservicefromvendo, 
+	chg_dc_EstimateApproved, 
+	chg_dc_EstimateCompleted, 
+	chg_dc_ServiceRequestInProgress, 
+	chg_dc_ServiceRequestWorkComplet, 
+	chg_dc_AssignmentCompleted, 
+	chg_dc_InspectionPerformed, 
+	chg_dc_InspectionScheduled, 
+	chg_dc_InsuredContacted, 
+	chg_dc_ServiceRequestCanceled, 
+	chg_dc_SupplementApproved, 
+	chg_dc_AssignmentReopened, 
+	chg_dc_Vendorcompletedwork, 
+	chg_dc_Addedinvoice, 
+	chg_dc_EstimateDeleted, 
+	chg_dc_EstimateCanceled, 
+	chg_dc_Approvedinvoice, 
+	chg_dc_PaidInvoice, 
+	chg_dc_SupplementCanceled, 
+	chg_dc_EstimateReinstated, 
+	chg_dc_SupplementDeleted, 
+	chg_dc_SupplementReinstated, 
+	chg_dc_UnpaidInvoice, 
+	chg_dc_JobScheduled, 
+	chg_dc_Invoice0markedasunpaid, 
+	chg_dc_JobCompleted, 
+	chg_dc_JobStarted);
+	ext_svc_sum = sum(service_EnservioContentsValuatio, 
+	service_TempHousing, 
+	service_LadderAssist, 
+	service_ContractorConnectionAdju, 
+	service_EnservioOnsiteInventorya, 
+	service_ContractorConnectionMana, 
+	service_IADaily, 
+	service_IACAT, 
+	service_HSB, 
+	service_PeerReview, 
+	service_HVACi, 
+	service_Evaluation, 
+	service_ESHSelectEquipmentBreakd, 
+	service_Other, 
+	service_HVACiDesktopReview, 
+	service_HVACiOnSite, 
+	service_WaterMitigation, 
+	service_HVACiESHSelectEndorsemen);
+run;
+
+proc sql;
+create table Zip_Branch as
+select distinct
+  regn.regn_nm as Office
+, regn_zn_cd as ZIP_Code
+from ccds.regn
+left join ccds.regn_zn on regn.regn_ntrl_id = regn_zn.regn_ntrl_id AND regn_zn.regn_zn_typ_dc = 'ZipCode'
+        and regn_zn.crnt_rec_in = 'Y' and regn_zn.rec_ret_in = 'N'
+where regn.crnt_rec_in = 'Y' and regn.rec_ret_in = 'N'
+;quit;
+
+data Zip_Branch;
+	set Zip_Branch;
+	office1 = scan(Office,1);
+	office2 = scan(Office,2);
+	if zip_code ne '' and office1 not in ('ISS', 'HES', 'UM', 'PA', 'OH', 'TN', 'NC', 'MD', 'NY', 'Branch', 'Silver', 'WV');
+
+	if office1 in ('New', 'Fort', 'Silver', 'West') then office1 = compress(office1||office2);
+	if office1 = 'Virginia' then office1 = 'Waynesboro';
+	if office1 = 'Knoxville' then office1 = 'Tennessee';
+	if office1 = 'Peoria' then office1 = 'Illinois';
+	if office1 = 'Warrendale' then office1 = 'Pittsburgh';
+	if office1 = 'Waukesha' then office1 = 'Wisconsin';
+	if office1 = 'NewYork' then office1 = 'Rochester';
+	if office1 = 'Indiana' then office1 = 'Indianapolis';
+	if office1 = 'WestVirginia' then office1 = 'Parkersburg';
+	if office1 = 'WaynesboroWV' then office1 = 'Waynesboro';
+	if office1 = 'ParkersburgOH' then office1 = 'Parkersburg';
+	if office1 = 'DC' then office1 = 'SilverSpring';
+run;
+
+/*proc sql;*/
+/*	create table Zip_Branch2 as*/
+/*	select distinct office1, substr(zip_code,1,3) as zip3*/
+/*	from Zip_Branch;*/
+/*quit;*/
+
+
+proc sql;
+	create table zip_density as
+	select distinct riskstate, policyeffectiveyear, substr(riskzip,1,3) as riskzip3, count(*) as count_home
+	from home_vars
+	group by riskstate, policyeffectiveyear, substr(riskzip,1,3);
+quit;
+
+
+proc sql;
+	create table branch_density as
+	select distinct a.riskstate, a.policyeffectiveyear, a.riskzip, b.office1, count(a.policynumber) as count_home
+	from home_vars as a left join zip_branch as b
+	on a.riskzip = b.zip_code
+	group by a.riskstate, a.policyeffectiveyear, a.riskzip;
+quit;
+
+
+proc sql;
+	create table branch_density2 as
+	select distinct riskstate, riskzip, policyeffectiveyear, office1, count(count_home) as count_home
+	from branch_density
+	group by riskstate, policyeffectiveyear, office1;
+quit;
+
+proc sort data=branch_density2;
+	by RiskZIP policyeffectiveyear riskzip descending count_home;
+run;
+
+data branch_density2;
+	set branch_density2;
+	by RiskZIP policyeffectiveyear riskzip descending count_home;
+	if first.riskzip;
+run;
+
+
+proc sql;
+	create table services6_report as
+	select distinct a.*, b.count_home as zip_density, c.count_home as branch_density, year(a.asgn_dt) as rpt_year
+	from services5_report as a left join zip_density as b on a.state_dc = b.riskstate and substr(a.pstl_cd,1,3) = b.riskzip3
+	and year(a.asgn_dt) = b.policyeffectiveyear
+	left join branch_density2 as c on a.state_dc = c.riskstate and substr(a.pstl_cd,1,5) = c.riskzip and year(a.asgn_dt) = c.policyeffectiveyear;
+quit;
+
+
+proc sql;
+	create table find_dupes as
+	select distinct clm_nr, svc_req_nr, count(zip_density) as count
+	from services6_report
+	group by clm_nr, svc_req_nr
+	having count > 1;
+quit;
+
+
+/* Add on cat severity indicator and misc. indicators missed in program 1 */
+
+/* Claim level attributes (info about the loss) */
+/* potential issue: I'm merging all this info on at the claim level; for things that change between 2 services on a claim, this won't tell which
+   attributes apply to which service */
+PROC SQL;
+    CONNECT USING CCDS;
+
+    CREATE TABLE ClaimInfo AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT DISTINCT
+	clm.clm_nr, 
+	EXP.EXPSR_TYP_DC, 
+	clm.LOSS_DT,
+	clm.cls_dt,
+	clm.loss_caus_dc,
+
+	/* Special Circumstance */
+	pol.pol_nr,
+	pol.pol_typ_dc,
+	pol.PRDC_CD,
+	pol.POL_FRM_TYP_DC,
+	pol.RTNG_PLN_DC,
+	pol.TOT_PRPTY_NR,
+	pol.COV_FRM_DC,
+	SUBSTR(POL.PRDC_CD,2,1) as PolicyST_CD,
+	CLM_ADDL_INFO.CNFDL_CNTC_CLM_IN, 
+	CLM_ADDL_INFO.MED_EXTNGSH_IN, 
+	CLM_ADDL_INFO.SPCL_CRC_IN, 
+	SPCL_CRC.BUS_CLS_DC, 
+	SPCL_CRC.BUS_CLS_CD, 
+	SPCL_CRC.BUS_CLS_OTHR, 
+	SPCL_CRC.SPEC_CRC, 
+	SPCL_CRC.SPCL_CRC_REL_TO_NTRL_ID, 
+	SPCL_CRC.LOB_DSCPL_MD, 
+	SPCL_CRC.LOB_DSCPL_PR, 
+	SPCL_CRC.LOB_DSCPL_LB, 
+	SPCL_CRC.LOB_DSCPL_WC, 
+	SPCL_CRC.LOB_DSCPL_MM, 
+	SPCL_CRC.LOB_DSCPL_Z, 
+	SPCL_CRC.COVID_CLNG, 
+	SPCL_CRC_REL_TO.SPCL_CRC_REL_TO_ID, 
+	SPCL_CRC_REL_TO.PMT_AMT,
+
+	/* Bad Faith */
+	ca.ASSOC_TTL,
+	cia.PRIM_CLM_IN,
+
+	/* Loss Details */
+	INCID.SBTYP_DC as IncidentType,
+	INCID.LOSS_PARTY_DC as LossPartyType,
+	/* UPDATED 7/29/22 */
+	INCID.LOSS_SVRTY_DC
+
+from BRFADM.clm
+
+	left join  BRFADM.POL pol ON POL.POL_NTRL_ID = CLM.POL_NTRL_ID 	
+		and CLM.CRNT_REC_IN='Y' and CLM.REC_RET_IN='N' and pol.rec_ret_in = 'N' and pol.crnt_rec_in = 'Y'
+		
+	left join BRFADM.CLM_ADDL_INFO on CLM_ADDL_INFO.CLM_NTRL_ID = CLM.CLM_NTRL_ID 	
+		and CLM_ADDL_INFO.crnt_rec_in = 'Y' and CLM_ADDL_INFO.rec_ret_in = 'N'
+		
+	left join BRFADM.SPCL_CRC SPCL_CRC on SPCL_CRC.SPCL_CRC_NTRL_ID = CLM_ADDL_INFO.SPCL_CRC_NTRL_ID 	
+		and SPCL_CRC.REC_RET_IN = 'N' and spcl_crc.crnt_rec_in = 'Y'
+		
+	left join BRFADM.SPCL_CRC_REL_TO SPCL_CRC_REL_TO on SPCL_CRC.SPCL_CRC_REL_TO_NTRL_ID = SPCL_CRC_REL_TO.SPCL_CRC_REL_TO_NTRL_ID 	
+		and SPCL_CRC_REL_TO.CRNT_REC_IN = 'Y' and SPCL_CRC_REL_TO.rec_ret_in = 'N'
+
+	left join BRFADM.clm_info ci on ci.clm_nr = clm.clm_nr and ci.crnt_rec_in = 'Y' and ci.rec_ret_in = 'N'
+
+	left join BRFADM.clm_in_assoc cia on ci.clm_info_ntrl_id = cia.clm_info_ntrl_id
+
+	left join BRFADM.clm_assoc ca on ca.CLM_ASSOC_NTRL_ID =cia.CLM_ASSOC_NTRL_ID 
+
+	LEFT JOIN BRFADM.INCID ON CLM.CLM_NTRL_ID  = INCID.CLM_NTRL_ID and INCID.crnt_rec_in = 'Y' and INCID.rec_ret_in = 'N' 
+
+	LEFT JOIN BRFADM.EXPSR EXP ON CLM.CLM_NTRL_ID = EXP.CLM_NTRL_ID
+		AND INCID.INCID_NTRL_ID = EXP.INCID_NTRL_ID
+        AND EXP.REC_RET_IN = 'N' 
+        AND EXP.CRNT_REC_IN = 'Y' 
+
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+		
+	where clm.crnt_rec_in = 'Y' and clm.rec_ret_in = 'N'
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+	and pol.pol_typ_dc = 'HP'
+
+	);
+
+	/* Flags on claim */
+	CREATE TABLE Flags AS
+    SELECT * 
+
+FROM connection to CCDS
+    (
+    SELECT DISTINCT
+	clm.clm_nr, 
+	/* HIGH RISK indicators - need to filter on_in on = 'Y' to get applicable indicators */
+	clm_in.ON_IN,
+	CLM_IN.IN_SBTYP_CD,
+	clm_in.in_sbtyp_dc
+
+from BRFADM.clm
+	left join BRFADM.clm_in on clm_in.clm_ntrl_id = clm.clm_ntrl_id and clm_in.crnt_rec_in = 'Y' and clm_in.rec_ret_in = 'N'
+
+	LEFT JOIN BRFADM.SVC_REQ SR	on SR.CLM_NTRL_ID = CLM.CLM_NTRL_ID
+	and SR.CRNT_REC_IN = 'Y'
+
+	where clm.crnt_rec_in = 'Y' and clm.rec_ret_in = 'N' and clm_in.on_in = 'Y'
+	and SR.ASGN_DT between &FROM_DT. and &TO_DT.
+	);
+
+
+
+	DISCONNECT FROM CCDS;
+
+QUIT;
+
+/* None of these are really filled in -- ignore */
+proc freq data=claiminfo;
+	tables BUS_CLS_DC
+		BUS_CLS_CD
+		BUS_CLS_OTHR
+		SPEC_CRC
+		SPCL_CRC_REL_TO_NTRL_ID
+		LOB_DSCPL_MD
+		LOB_DSCPL_PR
+		LOB_DSCPL_LB
+		LOB_DSCPL_WC
+		LOB_DSCPL_MM
+		LOB_DSCPL_Z
+		COVID_CLNG
+		SPCL_CRC_REL_TO_ID;
+run;
+
+proc sort data=claiminfo;
+	by clm_nr descending loss_svrty_dc;
+run;
+
+data claiminfo;
+	set claiminfo;
+	by clm_nr descending loss_svrty_dc;
+	if first.clm_nr;
+run;
+
+
+/* Merge on cat sev indicator */
+proc sql;
+	create table merge_catsev as
+	select distinct a.*, b.LOSS_SVRTY_DC as cat_severity_ind
+	from services6_report as a left join claiminfo as b
+	on a.clm_nr = b.clm_nr;
+quit;
+
+data services7_report;
+	set merge_catsev;
+run;
+data propcurr.services7_report;
+	set services7_report;
+run;
+
+data for_python_report;
+	set services7_report;
+	keep svc_req_nr service_days 
+	/* x vars */
+	chg_dc_EstimateCompleted chg_dc_SupplementApproved service_EnservioOnsiteInventorya 
+	service_ContractorConnectionMana service_IACAT losscaus_Hail losscaus_FireSmoke expsr_PropertyDamage expsr_LivingExpenses
+	incidtyp_FixedPropertyIncident incidtyp_LivingExpensesIncident CLNG_DMG_IN EXTR_WALL_DMG_IN RF_DMG_IN flag_Litigation
+	PolicyEffectiveYear AmountOfInsurance OP CurrentModel 
+	ROL_DC drivetime ConstructionYear AdjusterReportingBranch adjpositiontitle pub_adj cats_nm cat losscaus_FireSmoke
+	losscaus_WaterMold losscaus_Wind zip_density branch_density prior_period_all prior_period_cat expsr_content
+	flag_Fatalities losscaus_TheftMissingLost
+	/* V 24 */
+	chg_dc_ServiceRequestInProgress chg_dc_ServiceRequestWorkComplet chg_dc_AssignmentCompleted chg_dc_ServiceRequestCanceled
+	chg_dc_AssignmentReopened service_EnservioContentsValuatio service_TempHousing service_LadderAssist service_HSB service_PeerReview
+	losscaus_VandalismRiotCivilCommt losscaus_FrozenPipes losscaus_MechanicalElectrclBrkdw losscaus_TreeDebrisOnly losscaus_FoodSpoilage
+	expsr_VehicleDamage expsr_GeneralDamage expsr_VesselDamage expsr_OtherStructure flag_ISS flag_CoverageinQuestion Construction
+	/* V28 */
+	cat_severity_ind
+	/* Add text fields for text mining*/
+	claimdescription incid_dc claimsummary
+;
+
+	/* Cap/adjust missing values */
+/*	if drivetime > 150 then drivetime = 150;*/
+	if ConstructionYear > 2022 then ConstructionYear = 1600;
+	if constructionyear < 1800 and constructionyear > 1600 then constructionyear = 1800;
+		else if constructionyear < 1900 then constructionyear = 1900;
+		else if constructionyear < 1940 then constructionyear = 1940;
+		else if constructionyear < 1960 then constructionyear = 1960;
+		else if constructionyear < 1980 then constructionyear = 1980;
+		else if constructionyear < 2000 then constructionyear = 2000;
+		else constructionyear = 2022;
+
+	if AmountOfInsurance < 0 then AmountOfInsurance = -1;
+		else if AmountOfInsurance <= 20000 then AmountOfInsurance = 20000;
+		else if AmountOfInsurance <= 100000 then AmountOfInsurance = 100000;
+		else if AmountOfInsurance <= 150000 then AmountOfInsurance = 150000;
+		else if AmountOfInsurance <=175000 then AmountOfInsurance = 175000;
+		else if AmountOfInsurance <= 200000 then AmountOfInsurance = 200000;
+		else if AmountOfInsurance <= 225000 then AmountOfInsurance = 225000;
+		else if AmountOfInsurance <= 250000 then AmountOfInsurance = 250000;
+		else if AmountOfInsurance <=275000 then AmountOfInsurance = 275000;
+		else if AmountOfInsurance <= 300000 then AmountOfInsurance = 300000;
+		else if AmountOfInsurance <=325000 then AmountOfInsurance = 325000;
+		else if AmountOfInsurance <=350000 then AmountOfInsurance = 350000;
+		else if AmountOfInsurance <=375000 then AmountOfInsurance = 375000;
+		else if AmountOfInsurance <=400000 then AmountOfInsurance = 400000;
+		else if AmountOfInsurance <=450000 then AmountOfInsurance = 450000;
+		else if AmountOfInsurance <= 500000 then AmountOfInsurance = 500000;
+		else if AmountOfInsurance <=600000 then AmountOfInsurance = 600000;
+		else AmountOfInsurance = 1000000;
+ 
+
+	if rol_dc = "Blank" then pub_adj = 0; else pub_adj = 1;
+
+	if drivetime = -99 then drivetime = -1;
+		else if drivetime < 30 then drivetime = 30;
+		else if drivetime < 60 then drivetime = 60;
+		else if drivetime < 90 then drivetime = 90;
+		else if drivetime < 120 then drivetime = 120;
+		else if drivetime < 150 then drivetime = 150;
+		else drivetime = 180;
+
+	if cats_nm = "Blank" then cat = 0; else cat = 1;
+
+	if zip_density = . then zip_density = -1;
+		else if zip_density <= 5000 then zip_density = 5000;
+		else if zip_density <= 10000 then zip_density = 10000;
+		else if zip_density <= 15000 then zip_density = 15000;
+		else if zip_density <= 20000 then zip_density = 20000;
+		else if zip_density <= 25000 then zip_density = 25000;
+		else if zip_density <= 30000 then zip_density = 30000;
+		else if zip_density <= 35000 then zip_density = 35000;
+		else if zip_density <= 40000 then zip_density = 40000;
+		else if zip_density <= 45000 then zip_density = 45000;
+		else zip_density = 50000;
+	if branch_density = . then branch_density = -1;
+
+	if prior_period_cat = . then prior_period_cat = -1;
+		else if prior_period_cat <= 1000 then prior_period_cat = 1000;
+		else if prior_period_cat <= 2000 then prior_period_cat = 2000;
+		else if prior_period_cat <= 3000 then prior_period_cat = 3000;
+		else if prior_period_cat <= 4000 then prior_period_cat = 4000;
+		else if prior_period_cat <= 5000 then prior_period_cat = 5000;
+		else if prior_period_cat <= 6000 then prior_period_cat = 6000;
+		else prior_period_cat = 8000;
+
+	if chg_dc_EstimateCompleted > 7 then chg_dc_EstimateCompleted = 7;
+	if chg_dc_ServiceRequestInProgress > 7 then chg_dc_ServiceRequestInProgress = 7;
+	if chg_dc_ServiceRequestWorkComplet > 6 then chg_dc_ServiceRequestWorkComplet = 6;
+	if chg_dc_AssignmentCompleted > 5 then chg_dc_AssignmentCompleted = 5;
+	if chg_dc_ServiceRequestCanceled > 2 then chg_dc_ServiceRequestCanceled = 2;
+	if chg_dc_AssignmentReopened > 4 then chg_dc_AssignmentReopened = 4;
+	if service_EnservioContentsValuatio > 4 then service_EnservioContentsValuatio = 4;
+	if service_TempHousing > 2 then service_TempHousing = 2;
+	if service_LadderAssist > 6 then service_LadderAssist = 6;
+	if service_HSB > 3 then service_HSB = 3;
+	if service_HSB = '' then service_HSB = 0;
+	if service_PeerReview > 2 then service_PeerReview = 2;
+
+
+	where service_days >= 0;
+run;
+
+/* Need this step otherwise text fields import funky in Python*/
+data for_python_text;
+	set for_python_report;
+/*	keep svc_req_nr claimdescription claimsummary incid_Dc;*/
+	claimdescription = compress(claimdescription, "abcdefghijklmnopqrstuvwxyz","kis");
+	claimsummary = compress(claimsummary, "abcdefghijklmnopqrstuvwxyz","kis");
+	incid_Dc = compress(incid_Dc, "abcdefghijklmnopqrstuvwxyz","kis");
+	claimdescription = prxchange("s/\n/ /",-1, claimdescription);
+	claimsummary = prxchange("s/\n/ /",-1, claimsummary);
+	incid_Dc = prxchange("s/\n/ /",-1, incid_Dc);
+run;
+
+data propcurr.CB_text;
+	set for_python_text;
+run;
+
+
+
+
+
+
+%macro ExportCustom();
+
+%if &flag. = 1 %then %do;
+	/* excel output */
+	proc export data=for_python_text
+	outfile="/ere/local/shared/actuarial/Share/Claims/WPC/Property/executable/Output/CB_text.csv"
+	dbms=csv
+	replace;
+run;
+
+
+%end;
+%else %do;
+
+	/* excel output */
+	proc export data=for_python_text
+	outfile="&output_path_csv/CB_text.csv"
+	dbms=csv
+	replace;
+run;
+%end;
+
+
+%mend ExportCustom;
+
+%ExportCustom();
+
