@@ -1,0 +1,173 @@
+
+PROC IMPORT DATAFILE='/ere/local/shared/actuarial/Share/Claims/WPC/TESTING 2/Adj Prod by Property_Template.xlsx' 
+    DBMS=XLSX 
+    REPLACE 
+    OUT=both1;
+    sheet="PropertyWL";
+    GETNAMES=YES; 
+RUN;
+
+
+proc sql;
+    create table dups as 
+    select *
+    from both1
+    group by 'EMP_ID'n, 'Payperiodend_dt'n
+    having count(*) gt 1;
+quit;
+
+data both;
+    set both1;
+    format Payperiodend_dt mmddyy10.;
+
+    keep 'Region'n
+         'RPT_ENTITY'n
+         'EMP_NM'n
+         'EMP_ID'n
+         'Payperiodend'n
+         'NewServices'n
+         'NewExposures'n
+         'CompletedExposures'n
+         'Total_Hours'n
+         'TotalPTOHrsPaid'n
+         'TotalOTHrsPaid'n
+         'JOB_TTL_FULL'n
+         'SPVS_EMP_ID'n
+         'SPVS_NM'n
+         Payperiodend_dt
+    ;
+run;
+
+/* fix adj titles */
+
+data both;
+    format JOB_TTL_FULL $50.;
+    set both;
+
+    if JOB_TTL_FULL = 'IPA' then JOB_TTL_FULL = 'Inside Property Adjuster';
+    else if JOB_TTL_FULL = 'Property Claims Spct' then JOB_TTL_FULL = 'Property Claims Specialist';
+    else if JOB_TTL_FULL = 'Property Specialist' then JOB_TTL_FULL = 'Property Claims Specialist';
+    else if JOB_TTL_FULL = 'Sr Property Specialist' then JOB_TTL_FULL = 'Sr Property Claims Specialist';
+    else if JOB_TTL_FULL = 'Sr Property Claims Spct' then JOB_TTL_FULL = 'Sr Property Claims Specialist';
+    else if JOB_TTL_FULL = 'CAT Adjuster' then JOB_TTL_FULL = 'Catastrophe Property Adjuster';
+    else if JOB_TTL_FULL = 'Property Adjuster I' then JOB_TTL_FULL = 'Property Adjuster';
+    else if JOB_TTL_FULL = 'Property Adjuster II' then JOB_TTL_FULL = 'Property Adjuster';
+
+    where JOB_TTL_FULL ne 'PRPA' 
+      and JOB_TTL_FULL ne 'Property Repair Program Adjuster';
+run;
+
+/* fix branch */
+
+data both;
+    set both;
+    length Region $10.;
+
+    if RPT_ENTITY = 'Columbus' then Region = 'West';
+    else if RPT_ENTITY = 'Roanoke' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Charlotte' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Silver Spring' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Hagerstown' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Tennessee' then Region = 'West';
+    else if RPT_ENTITY = 'Philadelphia' then Region = 'Northeast';
+    else if RPT_ENTITY = 'Murrysville' then Region = 'Northeast';
+    else if RPT_ENTITY = 'Harrisburg' then Region = 'Northeast';
+    else if RPT_ENTITY = 'Wisconsin' then Region = 'West';
+    else if RPT_ENTITY = 'Erie' then Region = 'Northeast';
+    else if RPT_ENTITY = 'Allentown' then Region = 'Northeast';
+    else if RPT_ENTITY = 'Indiana' then Region = 'West';
+    else if RPT_ENTITY = 'New York' then Region = 'Northeast';
+    else if RPT_ENTITY = 'West Virginia' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Richmond' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Pittsburgh' then Region = 'Northeast';
+    else if RPT_ENTITY = 'Raleigh' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Fort Wayne' then Region = 'West';
+    else if RPT_ENTITY = 'Illinois' then Region = 'West';
+    else if RPT_ENTITY = 'Canton' then Region = 'West';
+    else if RPT_ENTITY = 'Kentucky' then Region = 'West';
+    else if RPT_ENTITY = 'Waynesboro' then Region = 'Southeast';
+    else if RPT_ENTITY = 'Claims' then Region = 'Claims';
+run;
+
+/* combine */
+
+PROC SQL;
+    CREATE TABLE propcurr.hcoutput AS
+    SELECT
+        'Region'n,
+        'RPT_ENTITY'n,
+        'JOB_TTL_FULL'n,
+        'EMP_ID'n,
+        'Payperiodend'n,
+        Payperiodend_dt,
+        'NewServices'n,
+        'NewExposures'n,
+        'OpenExposures'n,
+        'CompletedExposures'n,
+        'Total_Hours'n,
+        'TotalOTHrsPaid'n,
+        'TotalPTOHrsPaid'n,
+        'SPVS_EMP_ID'n,
+        'SPVS_NM'n,
+        'EMP_NM'n
+    FROM both;
+QUIT;
+
+data propcurr.hcoutput2;
+    set propcurr.hcoutput;
+    drop
+        'SPVS_EMP_ID'n
+        'SPVS_NM'n
+        'EMP_NM'n
+    ;
+run;
+
+/* create adjuster/branch/position decode */
+
+PROC SQL;
+    CREATE TABLE adjusters_decode AS
+    SELECT DISTINCT
+        a.'EMP_NM'n,
+        a.'JOB_TTL_FULL'n,
+        a.'RPT_ENTITY'n,
+        a.'EMP_ID'n,
+        cat('RPT_ENTITY'n,'JOB_TTL_FULL'n) AS group
+    FROM both AS A
+    WHERE a.Payperiodend_dt
+    ORDER BY
+        a.'RPT_ENTITY'n,
+        a.'JOB_TTL_FULL'n,
+        a.'EMP_NM'n,
+        a.'EMP_ID'n;
+QUIT;
+
+/* add counter and lookup field */
+
+data adjusters_decode;
+    set adjusters_decode;
+    by group;
+    retain agt;
+    if first.group = 1 then agt = 1;
+    else agt = agt+1;
+run;
+
+PROC SQL;
+    CREATE TABLE propcurr.adjusters_decode2 AS
+    SELECT
+        cat(agt,trim('RPT_ENTITY'n),'JOB_TTL_FULL'n) AS bradjseq,
+        'EMP_NM'n,
+        'JOB_TTL_FULL'n,
+        'RPT_ENTITY'n,
+        'EMP_ID'n
+    FROM adjusters_decode;
+QUIT;
+
+proc sql;
+    create table propcurr.adj_decode as 
+    select distinct 
+        compress(a.'EMP_NM'n) as EMP_NM,
+        a.'EMP_ID'n
+    from both1 as a;
+quit;
+
+libname propcurr clear;
